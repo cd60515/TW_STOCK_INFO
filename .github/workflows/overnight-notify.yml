@@ -1,0 +1,35 @@
+name: 隔日沖進場訊號推播
+
+on:
+  schedule:
+    # 目標實際送達時間:12:00 台北時間(04:00 UTC),盤中即時掃描。
+    # 實測 GitHub 這個時段的 schedule 平均晚了約 4.5 小時才觸發,因此把 cron
+    # 目標提前 4.5 小時(23:30 UTC 前一日 = 07:30 台北)來抵銷,讓信件實際落在中午
+    # 附近。對應台北週一至週五,UTC 平日欄位要往前跨一天,寫成「週日至週四 23:30」。
+    # 若之後 GitHub 的延遲狀況改變,可能需要重新校正這個補償值。
+    - cron: '30 23 * * 0-4'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '測試用:指定候選池依據的結算日期 YYYYMMDD(例如 20260827)。即時報價一定是執行當下的市場狀態,此參數只影響候選池挑選。'
+        required: false
+        type: string
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r overnight_notifier/requirements.txt
+
+      - run: python overnight_notifier/overnight_notify.py
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          TEST_DATE: ${{ github.event.inputs.date }}

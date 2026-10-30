@@ -1,0 +1,5 @@
+# 選用:手動標記台股「非開盤日」的補充清單(一行一個日期,格式 YYYY-MM-DD)。
+# 用法與 daytrade_notifier/holidays.txt 相同,兩支程式各自獨立維護。
+#
+# 每年台股完整休市日曆請參考臺灣證券交易所官網公告:
+# https://www.twse.com.tw/zh/trading/holiday.html

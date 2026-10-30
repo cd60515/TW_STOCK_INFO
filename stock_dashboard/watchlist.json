@@ -1,0 +1,18 @@
+{
+  "_說明": "自選股清單。直接在 GitHub 網頁上編輯這個檔案並 commit,系統會自動重新產生網站。market: TWSE=上市, TPEX=上櫃(上櫃股目前提供技術面與新聞,籌碼資料以上市股為主)。",
+  "stocks": [
+    {"code": "2330", "name": "台積電", "market": "TWSE"},
+    {"code": "2317", "name": "鴻海", "market": "TWSE"},
+    {"code": "2454", "name": "聯發科", "market": "TWSE"},
+    {"code": "2308", "name": "台達電", "market": "TWSE"},
+    {"code": "2382", "name": "廣達", "market": "TWSE"},
+    {"code": "3231", "name": "緯創", "market": "TWSE"},
+    {"code": "2345", "name": "智邦", "market": "TWSE"},
+    {"code": "3017", "name": "奇鋐", "market": "TWSE"},
+    {"code": "2881", "name": "富邦金", "market": "TWSE"},
+    {"code": "2882", "name": "國泰金", "market": "TWSE"},
+    {"code": "2603", "name": "長榮", "market": "TWSE"},
+    {"code": "1519", "name": "華城", "market": "TWSE"},
+    {"code": "0050", "name": "元大台灣50", "market": "TWSE"}
+  ]
+}

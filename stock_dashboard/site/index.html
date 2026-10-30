@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>台股戰情室</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#overview">台股戰情室</a>
+    <div class="stamp" id="stamp">載入中…</div>
+    <nav class="tabs" id="tabs" aria-label="主選單">
+      <a href="#overview" data-view="overview">大盤總覽</a>
+      <a href="#watchlist" data-view="watchlist">自選股</a>
+      <a href="#stock" data-view="stock">個股分析</a>
+      <a href="#radar" data-view="radar">選股雷達</a>
+      <a href="#portfolio" data-view="portfolio">持股管理</a>
+      <a href="#guide" data-view="guide">使用說明</a>
+    </nav>
+  </div>
+</header>
+<div class="stale-banner" id="staleBanner" role="alert" hidden></div>
+<div class="demo-banner" id="demoBanner" hidden>目前顯示的是<b>示範資料</b>(隨機模擬),僅供預覽版面。正式資料會在 GitHub Actions 第一次執行後自動取代。</div>
+<main class="wrap" id="app">
+  <p class="muted">資料載入中…</p>
+</main>
+<footer class="foot wrap">
+  本網站為公開資料(臺灣證券交易所、Yahoo Finance、新聞 RSS)之機械式整理與分析,所有評分、訊號與價位僅供參考,不構成投資建議,投資盈虧請自負。
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
