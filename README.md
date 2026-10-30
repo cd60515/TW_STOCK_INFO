@@ -19,8 +19,8 @@
 | `GMAIL_APP_PASSWORD` | Secret | Gmail 應用程式密碼 |
 | `MAIL_TO` | Secret | (選用)收件信箱,逗號分隔 |
 | `ANTHROPIC_API_KEY` | Secret | (選用)戰情室「盤後重點」改由 Claude 撰寫 |
-| `ENABLE_PAGES` | Variable | 設為 `true` 以 GitHub Pages 發布戰情室網站 |
-| `DASHBOARD_URL` | Variable | (選用)網站網址,會放在 email 中 |
+| `ENABLE_PAGES` | Variable | (選用)預設會以 GitHub Pages 發布戰情室網站,設為 `false` 可關閉 |
+| `DASHBOARD_URL` | Variable | (選用)網站網址,會放在 email 中;預設 `https://<帳號>.github.io/<repo>/` |
 
 本機測試請使用環境變數,切勿把真實帳密寫進程式或 commit(`.env` 已列入 `.gitignore`)。
 

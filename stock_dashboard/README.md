@@ -32,7 +32,7 @@
 |---|---|---|
 | `GMAIL_USER`、`GMAIL_APP_PASSWORD`、`MAIL_TO` | Secret | 寄盤後報告(沿用當沖推播程式已設定的同一組) |
 | `ANTHROPIC_API_KEY` | Secret | 設定後「盤後重點」改由 Claude 撰寫分析師評論;未設定則使用規則式摘要 |
-| `ENABLE_PAGES` = `true` | Variable | 用 GitHub Pages 架站(私人 repo 需要 GitHub Pro;另需 Settings → Pages → Source 選 GitHub Actions) |
+| `ENABLE_PAGES` | Variable | 預設會用 GitHub Pages 架站(需 Settings → Pages → Source 選 GitHub Actions;私人 repo 需要 GitHub Pro),設為 `false` 可關閉 |
 | `DASHBOARD_URL` | Variable | 網站網址,會放在 email 裡 |
 
 **不想用 GitHub Pages?** `site/` 是純靜態網站,可以直接用 Zeabur、Netlify 或 Cloudflare Pages 部署 `stock_dashboard/site` 目錄;Actions 每次更新資料都會 commit,託管平台會自動重新部署。
