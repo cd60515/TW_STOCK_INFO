@@ -1,6 +1,8 @@
 name: 台股當沖觀察名單推播
 
 on:
+  push:  # TEMP: 測試寄信用,確認後移除
+    branches: [main]
   schedule:
     # 目標實際送達時間:12:00 台北時間(04:00 UTC)。
     # 實測 GitHub 這個時段的 schedule 平均晚了約 4.5 小時才觸發,因此把 cron
@@ -32,4 +34,4 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
-          TEST_DATE: ${{ github.event.inputs.date }}
+          TEST_DATE: '20261030'  # TEMP: 測試寄信用,確認後還原
