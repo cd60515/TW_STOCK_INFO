@@ -56,7 +56,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
           FORCE_EMAIL: ${{ github.event.inputs.force_email == 'true' && '1' || '' }}
 
       - name: 保存歷史資料與網站資料
@@ -83,15 +83,18 @@ jobs:
           retention-days: 14
 
       - name: 準備 GitHub Pages
-        if: vars.ENABLE_PAGES == 'true' && github.ref == 'refs/heads/main'
+        if: vars.ENABLE_PAGES != 'false' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: stock_dashboard/site
 
   deploy-pages:
-    # 需要在 repo Settings > Pages 選擇 Source: GitHub Actions,並新增 repo 變數 ENABLE_PAGES=true
-    if: vars.ENABLE_PAGES == 'true' && github.ref == 'refs/heads/main'
+    # 預設在 main 上自動發布;需要在 repo Settings > Pages 選擇 Source: GitHub Actions
+    # (私人 repo 需 GitHub Pro)。尚未開啟 Pages 時這一步會失敗但不影響資料更新;
+    # 不想發布可新增 repo 變數 ENABLE_PAGES=false。
+    if: vars.ENABLE_PAGES != 'false' && github.ref == 'refs/heads/main'
     needs: build
+    continue-on-error: true
     runs-on: ubuntu-latest
     environment:
       name: github-pages
