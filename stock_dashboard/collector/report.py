@@ -65,7 +65,7 @@ def email_html(dash: dict) -> str:
     if sz:
         se = sz.get("sentiment") or {}
         lbl = sz["status_label"]
-        picks = [x for x in sz["rows"] if x["status"] != "failed"][:8]
+        picks = [x for x in sz["rows"] if x["status"] not in sz.get("excluded", ["failed"])][:8]
         surge = (f"<h3 style='margin:18px 0 6px'>飆股專區(連續跳空漲停)</h3>"
                  + (f"<p style='margin:4px 0'>市場溫度 <b>{se['score']:.0f}</b>({html.escape(se['label'])}):"
                     f"{html.escape(se['advice'])}</p>" if se else "")

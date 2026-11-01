@@ -443,7 +443,7 @@
   }
 
   // ---------------------------------------------------------------- 飆股專區
-  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", failed: "bear" };
+  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", lowvol: "neutral", failed: "bear" };
   let surgeTab = store.get("surgeTab", "all");
   let surgeSel = null;
 
@@ -456,9 +456,12 @@
     const Z = D.surge;
     if (!Z) { $app.innerHTML = '<section class="panel"><p class="empty">飆股專區資料尚未產生(下一次排程執行後就會出現)</p></section>'; return; }
     const S = Z.sentiment, L = Z.status_label;
-    const rows = Z.rows.filter((x) => surgeTab === "all" ? x.status !== "failed" : x.status === surgeTab);
+    const EX = Z.excluded || ["failed"], VR = Z.vol_rule || { lu: 0, day: 0 };
+    const ok = (x) => !EX.includes(x.status);
+    const rows = Z.rows.filter((x) => surgeTab === "all" ? ok(x) : x.status === surgeTab);
+    const volCell = (v, min) => v == null ? "—" : `<span class="${v < min ? "vol-bad" : ""}">${int(v)}</span>`;
     if (!surgeSel || !Z.rows.find((x) => x.code === surgeSel)) surgeSel = (rows[0] || Z.rows[0] || {}).code;
-    const tabs = [["all", "可操作名單", Z.rows.filter((x) => x.status !== "failed").length]].concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
+    const tabs = [["all", "可操作名單", Z.rows.filter(ok).length]].concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
     $app.innerHTML = `
     ${S ? `<section class="panel regime senti">
       <div><div class="label">市場溫度計 ・ 恐慌 vs 貪婪</div>
@@ -487,13 +490,13 @@
       </section>
     </div>` : ""}
     <section class="panel">
-      <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
+      <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)・量能門檻:漲停日均量 ≥ ${int(VR.lu)} 張、平日均量 ≥ ${int(VR.day)} 張</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
       <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-st="${k}" class="${surgeTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
-      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
+      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
       ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
         <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}</td>
         <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td>
-        <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
+        <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${volCell(x.lu_vol, VR.lu)}</td><td>${volCell(x.day_vol, VR.day)}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
         <td>${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)}</td><td>${signed((x.foreign ?? 0) + (x.trust ?? 0))}</td>
         <td class="txt">${x.ai ? esc(x.ai.theme) : esc((x.themes || []).join("、") || "—")}</td></tr>`).join("")}
       </tbody></table></div>` : '<p class="empty">目前沒有符合這個狀態的股票</p>'}
@@ -507,6 +510,7 @@
         <li class="bull"><span><b>缺口是生命線</b>:回測缺口不補 = 型態成立;缺口被完全回補 = 型態失敗,立刻出場。</span></li>
         <li class="bull"><span><b>買點</b>:不追連板,等「開板後量縮、回測缺口不破」或「整理後帶量再創新高」。</span></li>
         <li class="bull"><span><b>低基期優先</b>:起漲前位於一年區間低檔的續航力較好;高檔連板容易是末升段。</span></li>
+        <li class="bear"><span><b>量能門檻</b>:漲停日平均量至少 ${int((D.surge.vol_rule || {}).lu)} 張、平日(非漲停日)平均量至少 ${int((D.surge.vol_rule || {}).day)} 張;量太小的股票進出困難、容易被少數人拉抬,直接剔除。</span></li>
         <li class="bear"><span><b>融資暴增要小心</b>:連板期間融資大增 = 散戶追價,後續容易震盪。</span></li>
         <li class="info"><span><b>看大盤溫度</b>:市場越恐慌,能逆勢鎖漲停的股票越珍貴;極度貪婪時降低部位。</span></li>
         <li class="info"><span><b>注意/處置股</b>:連續漲停常被列入,處置期間分盤撮合、流動性變差,部位要更小。</span></li>
@@ -548,7 +552,7 @@
         <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
       </div>
       ${x.ai ? `<p class="view ai-note" style="margin-top:12px">${chip(x.ai.quality || "AI", x.ai.quality === "實質題材" ? "bull" : x.ai.quality === "概念炒作" ? "warn" : "neutral")} <b>${esc(x.ai.theme)}</b> — ${esc(x.ai.note)}</p>` : ""}
-      <div class="legend" style="margin-top:10px"><span><i style="background:#e8a33d"></i>MA5</span><span><i style="background:#3f86e0"></i>MA20</span><span><i style="background:var(--up)"></i>缺口區(上緣/下緣)</span><span><i style="background:var(--down)"></i>停損</span><span><i style="background:var(--muted)"></i>起漲價</span><span>▲ 漲停</span></div>
+      <div class="legend" style="margin-top:10px"><span><i style="background:#e8a33d"></i>MA5</span><span><i style="background:#3f86e0"></i>MA20</span><span><i style="background:var(--up)"></i>缺口區(上緣/下緣)</span><span><i style="background:var(--down)"></i>停損</span><span><i style="background:var(--muted)"></i>起漲價</span><span>▲ 漲停</span><span>下方柱狀 = 成交量(張)</span></div>
       <div id="surgeChart" class="chart-box" style="height:340px"></div>
       <div class="grid g2" style="margin-top:12px">
         <div class="plan">
@@ -568,6 +572,8 @@
             <div><span class="label">突破缺口狀態</span><b style="font-size:13px">${x.gap_filled ? '<span class="down">已回補</span>' : x.gap_tested ? "回測未補" : "未回測"}</b></div>
             <div><span class="label">基期位置(一年)</span><b>${x.base_pos == null ? "—" : fmt(x.base_pos, 0) + "%"}</b></div>
             <div><span class="label">起漲前 60 日</span><b>${pct(x.pre60, 1)}</b></div>
+            <div><span class="label">漲停日均量 / 平日均量(張)</span><b style="font-size:13px"><span class="${x.lu_vol < D.surge.vol_rule.lu ? "vol-bad" : ""}">${int(x.lu_vol)}</span> / <span class="${x.day_vol < D.surge.vol_rule.day ? "vol-bad" : ""}">${int(x.day_vol)}</span></b></div>
+            <div><span class="label">今日成交量</span><b style="font-size:13px">${int(x.vol)} 張</b></div>
             <div style="grid-column:span 2"><span class="label">量能(張):起漲前 → 爆量 → 近 5 日</span><b style="font-size:13px">${int(x.pre_vol)}→${int(x.burst_vol)}→${int(x.post_vol)}</b></div>
             <div><span class="label">外資 / 投信(張)</span><b style="font-size:13px">${signed(x.foreign)} / ${signed(x.trust)}</b></div>
             <div><span class="label">融資變化 / 券資比</span><b style="font-size:13px">${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)} / ${x.short_ratio == null ? "—" : fmt(x.short_ratio, 0) + "%"}</b></div>
@@ -695,6 +701,7 @@
       <ul>
         <li>每天掃描全體上市股票,找出近 20 個交易日內「連續 2 根以上漲停、且至少一根跳空漲停」的股票,用兩年日線精確判斷型態。</li>
         <li>依狀態分類:回測缺口・買點區、整理後再創新高、強勢整理、連板鎖單中、首根跳空漲停(早期觀察)、缺口回補・型態失敗。</li>
+        <li>量能門檻:漲停日平均成交量至少 1,000 張、近 20 日非漲停日平均成交量至少 800 張,未達標的股票放在「量能不足・剔除」分頁,不列入可操作名單與 email。</li>
         <li>續航分(0–100):型態強度 30、基期位置 20、缺口是否守住 15、開板後量縮 10、法人與融資籌碼 25,再依市場溫度加減分。</li>
         <li>市場溫度計綜合 VIX、融資維持率、融資餘額變化、漲跌家數、漲停/跌停家數、指數季線乖離、外資買賣超。恐慌越高越有利於布局強勢股;融資越高越要小心。</li>
         <li>設定 ANTHROPIC_API_KEY 後,會由 Claude 閱讀每檔候選股的新聞,判讀漲停題材是「實質題材」還是「概念炒作」。</li>
