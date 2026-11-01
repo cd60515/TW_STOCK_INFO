@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import sources as S
+from . import surge as SG
 
 BACKFILL_DAYS = 25
 KEEP_DAYS = 45
@@ -213,6 +214,23 @@ def collect_live(root: Path, watchlist: list[dict]):
     if len(market_news) < 5:
         market_news += S.google_news(http, "台股 盤勢 when:2d", limit=20)
 
+    # 飆股專區:先用全市場快照找出近期漲停股,再抓完整日線做精確型態判斷
+    cands = SG.find_candidates(daily)
+    surge_bars, surge_news = {}, {}
+    for c in cands:
+        b = S.yahoo_chart(http, c + ".TW")
+        if b:
+            surge_bars[c] = b
+    for c in cands[:40]:
+        surge_news[c] = S.google_news(http, f"{names.get(c, c)} {c} when:14d", limit=8)
+    vix = S.yahoo_chart(http, "^VIX", range_="1y")
+    if vix:
+        _save(state / "prices" / "VIX.json", vix)
+    else:
+        vix = _load(state / "prices" / "VIX.json", [])
+    alerts = S.twse_alerts(http)
+    S.log(f"[info] 飆股候選 {len(cands)} 檔(日線 {len(surge_bars)} 檔)、VIX {len(vix or [])} 筆、注意/處置 {len(alerts)} 檔")
+
     S.log(f"[info] 收集完成,TWSE 請求 {http.twse_calls} 次")
     return {
         "demo": False,
@@ -227,5 +245,6 @@ def collect_live(root: Path, watchlist: list[dict]):
         "names": names,
         "news": news,
         "market_news": market_news,
+        "surge": {"candidates": cands, "bars": surge_bars, "news": surge_news, "vix": vix, "alerts": alerts},
         "data_complete": "margin" in latest_idx and "t86" in latest_idx,
     }

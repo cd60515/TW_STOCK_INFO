@@ -9,7 +9,7 @@ MODEL = "claude-opus-5-5"
 SYSTEM = """你是一位資深台股分析師,為一位自行操作的個人投資人撰寫每日盤後重點。
 讀者每天只花幾分鐘看,所以要精簡、具體、可執行,用繁體中文。
 
-請根據提供的 JSON 資料(大盤、三大法人、類股、自選股評分與訊號、選股雷達、新聞標題)撰寫:
+請根據提供的 JSON 資料(大盤、三大法人、類股、自選股評分與訊號、選股雷達、飆股專區與市場溫度、新聞標題)撰寫:
 ### 今日盤勢
 2~3 句:指數表現、多空格局、法人動向與資金流向的類股。
 ### 自選股重點
@@ -43,6 +43,18 @@ def _payload(dash):
         } for s in dash["stocks"]],
         "screens": {sc["title"]: [f"{r['code']} {r['name']}" for r in sc["rows"][:5]] for sc in dash["screens"]},
         "market_news": [n["title"] for n in m["news"][:12]],
+        "surge_zone": _surge(dash.get("surge")),
+    }
+
+
+def _surge(sz):
+    if not sz:
+        return None
+    se = sz.get("sentiment") or {}
+    return {
+        "market_temperature": {"score": se.get("score"), "label": se.get("label"), "warnings": se.get("warnings")},
+        "gap_limit_up_stocks": [f"{x['code']} {x['name']} {sz['status_label'][x['status']]} 續航{x['score']:.0f}"
+                                for x in sz["rows"] if x["status"] != "failed"][:6],
     }
 
 

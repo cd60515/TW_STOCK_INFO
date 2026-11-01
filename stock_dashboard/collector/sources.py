@@ -481,3 +481,28 @@ def cnyes_news(http: Http, category="tw_stock", limit=30):
                     "time": ts.strftime("%Y-%m-%d %H:%M"),
                     "summary": (it.get("summary") or "").strip()[:160]})
     return out
+
+
+# ---------------------------------------------------------------- 注意股 / 處置股
+
+def twse_alerts(http: Http):
+    """證交所公告的注意股、處置股 -> {code: '處置' | '注意'}。
+    連續漲停的股票很容易被列入,處置期間改為分盤撮合、流動性下降,必須特別標示。
+    openapi 欄位名稱偶有調整,所以只抓「看起來像股票代號」的欄位。"""
+    out = {}
+    for url, label in (("https://openapi.twse.com.tw/v1/announcement/notice", "注意"),
+                       ("https://openapi.twse.com.tw/v1/announcement/punish", "處置")):
+        data = http.json(url, timeout=30)
+        if not isinstance(data, list):
+            continue
+        for row in data:
+            if not isinstance(row, dict):
+                continue
+            code = None
+            for k, v in row.items():
+                if ("Code" in k or "代號" in k) and re.fullmatch(r"\d{4,6}[A-Z]?", str(v).strip()):
+                    code = str(v).strip()
+                    break
+            if code and (label == "處置" or code not in out):
+                out[code] = label
+    return out
