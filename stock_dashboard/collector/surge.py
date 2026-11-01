@@ -1,0 +1,678 @@
+"""飆股專區:連續跳空漲停型態 + 市場恐慌/貪婪溫度計。
+
+選股邏輯(依實戰經驗整理,規則全部透明):
+  1. 型態:近 LOOKBACK 個交易日內出現「連續 ≥ 2 根漲停」,且其中至少一根是「跳空漲停」
+     (當日最低價 > 前一日最高價,留下未回補的缺口)。這代表主力不計成本搶籌碼。
+  2. 缺口是生命線:第一個跳空缺口(突破缺口)的下緣是型態的停損位。
+     回測缺口不補 = 主力護盤、型態成立;缺口被完全回補 = 型態失敗。
+  3. 最好的買點通常不是連板當下,而是「開板後量縮整理、回測缺口不破」或「整理後再創新高」。
+  4. 低基期起漲(起漲前位於一年區間的低檔)續航力較好;高檔連板容易是末升段。
+  5. 融資在連板期間暴增 = 散戶追價,後續籌碼凌亂;法人同步買超較健康。
+  6. 大盤環境:市場越恐慌,強勢股越容易成為資金避風港(逆勢抗跌);
+     市場極度貪婪、融資高檔時,要提高警覺、降低部位。
+
+市場溫度計 0(極度恐慌)~100(極度貪婪),由七項公開資料等權平均:
+  VIX 美股恐慌指數、大盤融資維持率(估算)、融資餘額 20 日變化、上漲家數比、
+  漲停/跌停家數比、加權指數季線乖離、外資 10 日買賣超。
+
+本模組只做規則式的機械判斷,所有分數與價位僅供參考,不構成投資建議。
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+from statistics import mean
+
+from .analysis import r
+
+LOOKBACK = 20         # 型態必須在最近 20 個交易日內發生
+MAX_CANDIDATES = 40   # 網站最多顯示幾檔(依續航分排序)
+CHART_BARS = 90       # 每檔附的 K 線根數
+MODEL = "claude-opus-5-5"
+
+
+# ---------------------------------------------------------------- 漲停價計算
+
+def tick(p: float) -> float:
+    """台股升降單位(股票)。"""
+    if p < 10:
+        return 0.01
+    if p < 50:
+        return 0.05
+    if p < 100:
+        return 0.1
+    if p < 500:
+        return 0.5
+    if p < 1000:
+        return 1.0
+    return 5.0
+
+
+def limit_up_price(prev: float) -> float:
+    raw = prev * 1.1
+    t = tick(raw)
+    return round(math.floor(raw / t + 1e-6) * t, 2)
+
+
+def is_limit_up(prev, close) -> bool:
+    if not prev or not close or close <= prev * 1.085:
+        return False
+    return close >= limit_up_price(prev) - 1e-6
+
+
+def snapshot_is_limit_up(p: dict) -> bool:
+    """只有當日快照(收盤 + 漲跌幅)時:由漲跌幅反推昨收並對齊升降單位。"""
+    chg = p.get("chg_pct") or 0
+    c = p.get("close")
+    if chg < 9.0 or not c:
+        return False
+    prev = c / (1 + chg / 100)
+    t = tick(prev)
+    return is_limit_up(round(round(prev / t) * t, 2), c)
+
+
+def is_common(code: str) -> bool:
+    return len(code) == 4 and code.isdigit() and not code.startswith("0")
+
+
+# ---------------------------------------------------------------- 候選股(全市場快照掃描)
+
+def find_candidates(daily: list[tuple[str, dict]]) -> list[str]:
+    """從全市場每日快照找出近期有漲停的股票(之後再用完整日線做精確判斷)。
+    條件寬鬆:近 LOOKBACK 日內漲停 ≥ 2 次,或最近 3 日內有漲停(首板觀察)。"""
+    recent = daily[-LOOKBACK:]
+    count: dict[str, int] = {}
+    last3: set[str] = set()
+    for i, (_, snap) in enumerate(recent):
+        for c, p in (snap.get("px") or {}).items():
+            if is_common(c) and snapshot_is_limit_up(p):
+                count[c] = count.get(c, 0) + 1
+                if i >= len(recent) - 3:
+                    last3.add(c)
+    out = [c for c, n in count.items() if n >= 2] + [c for c in last3 if count.get(c, 0) < 2]
+    # 先處理漲停次數多的,避免候選太多時漏掉主角
+    out.sort(key=lambda c: -count.get(c, 0))
+    return out[:120]
+
+
+def bars_from_snapshots(code: str, daily) -> list[dict]:
+    """Yahoo 失敗時的備援:用每日快照組出日線(約 45 根,沒有一年基期資料)。"""
+    out = []
+    for d, snap in daily:
+        p = (snap.get("px") or {}).get(code)
+        if p and p.get("open") and p.get("high") and p.get("low"):
+            out.append({"date": d, "open": p["open"], "high": p["high"], "low": p["low"],
+                        "close": p["close"], "volume": int((p.get("vol") or 0) * 1000)})
+    return out
+
+
+# ---------------------------------------------------------------- 單一股票型態分析
+
+def _runs(lu: list[bool]) -> list[tuple[int, int]]:
+    runs, s = [], None
+    for i, f in enumerate(lu + [False]):
+        if f and s is None:
+            s = i
+        elif not f and s is not None:
+            runs.append((s, i - 1))
+            s = None
+    return runs
+
+
+def _pattern_events(o, h, l, c, lu, gap):
+    """所有「連續 ≥2 根漲停且含跳空」的事件 -> [(start, end)]"""
+    return [(s, e) for s, e in _runs(lu) if e - s + 1 >= 2 and any(gap[s:e + 1])]
+
+
+def _forward(c, h, e, n):
+    """型態結束日收盤進場,之後 5/10/20 日報酬與 20 日內最大漲幅。"""
+    res = {}
+    for k in (5, 10, 20):
+        res[f"r{k}"] = (c[e + k] / c[e] - 1) * 100 if e + k < n else None
+    if e + 1 < n:
+        hi = max(h[e + 1:min(n, e + 21)])
+        res["max20"] = (hi / c[e] - 1) * 100
+    else:
+        res["max20"] = None
+    return res
+
+
+def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: dict) -> dict | None:
+    n = len(bars)
+    if n < 25:
+        return None
+    o = [float(b["open"]) for b in bars]
+    h = [float(b["high"]) for b in bars]
+    l = [float(b["low"]) for b in bars]
+    c = [float(b["close"]) for b in bars]
+    v = [float(b.get("volume") or 0) / 1000 for b in bars]
+    dates = [b["date"] for b in bars]
+    lu = [False] + [is_limit_up(c[i - 1], c[i]) for i in range(1, n)]
+    gap = [False] + [l[i] > h[i - 1] for i in range(1, n)]
+    one_word = [lu[i] and o[i] == h[i] == l[i] == c[i] for i in range(n)]
+
+    events = _pattern_events(o, h, l, c, lu, gap)
+    recent = [ev for ev in events if ev[1] >= n - LOOKBACK]
+    kind = None
+    if recent:
+        s, e = recent[-1]
+        # 若前面還有相鄰的事件(中間只隔 1~2 天),視為同一波,起漲點往前推
+        for ps, pe in reversed(recent[:-1]):
+            if s - pe <= 3:
+                s = ps
+        kind = "pattern"
+    else:
+        # 首板觀察:最近 2 日內出現跳空漲停,但還沒有連板
+        for i in range(n - 1, n - 3, -1):
+            if lu[i] and gap[i]:
+                s = e = i
+                while e + 1 < n and lu[e + 1]:
+                    e += 1
+                kind = "early"
+                break
+    if kind is None:
+        return None
+
+    last = n - 1
+    base = c[s - 1] if s >= 1 else o[s]
+    run_len = sum(lu[s:e + 1])
+    consec = max((ee - ss + 1 for ss, ee in _runs(lu[s:e + 1])), default=0)
+    gaps = [(i, h[i - 1], l[i]) for i in range(s, e + 1) if gap[i]]
+    peak = max(h[s:])
+    peak_close = max(c[s:])
+    days_since = last - e
+    run_gain = (c[e] / base - 1) * 100
+    total_gain = (c[last] / base - 1) * 100
+
+    # 缺口:第一個缺口 = 突破缺口(生命線);最後一個 = 最上方缺口
+    g_i, g_bot, g_top = gaps[0]
+    after_low = min(l[g_i + 1:]) if g_i < last else l[g_i]
+    gap_filled = after_low <= g_bot
+    gap_tested = after_low <= g_top and not gap_filled
+    u_i, u_bot, u_top = gaps[-1]
+    upper_filled = len(gaps) > 1 and u_i < last and min(l[u_i + 1:]) <= u_bot
+    # 進場/停損以「最接近現價、尚未回補」的缺口為準(突破缺口可能離現價太遠)
+    open_gaps = [(i, b_, t_) for i, b_, t_ in gaps if (i == last or min(l[i + 1:]) > b_) and b_ < c[last]]
+    tested = [g for g in open_gaps if g[0] < last]  # 今天才出現的缺口還沒經過考驗
+    k_i, k_bot, k_top = (tested or open_gaps or gaps)[-1]
+
+    # 量能:開板後是否量縮整理
+    pre_vol = mean(v[max(0, s - 20):s]) if s >= 5 else None
+    burst_vol = max(v[s:min(n, e + 2)])
+    post = v[e + 1:] if e < last else []
+    post_vol = mean(post[-5:]) if post else None
+    vol_dry = post_vol is not None and burst_vol > 0 and post_vol <= burst_vol * 0.5
+
+    # 基期:起漲前位於近一年區間的位置
+    w0 = max(0, s - 250)
+    lo250, hi250 = min(l[w0:s] or [base]), max(h[w0:s] or [base])
+    base_pos = (base - lo250) / (hi250 - lo250) * 100 if hi250 > lo250 and s - w0 >= 60 else None
+    pre60 = (base / c[s - 61] - 1) * 100 if s >= 61 else None
+
+    ma5 = mean(c[-5:])
+    ma10 = mean(c[-10:])
+
+    # 狀態判定
+    if lu[last] and e == last:
+        status = "running"
+    elif gap_filled or c[last] < g_bot:
+        status = "failed"
+    elif days_since >= 2 and c[last] >= max(c[s:last]) and c[last] > c[e]:
+        status = "breakout"
+    elif c[last] <= k_top * 1.05:
+        status = "buyzone"
+    else:
+        status = "consolidating"
+    if kind == "early" and status != "failed":
+        status = "early"
+
+    # 籌碼:型態期間法人與融資
+    period = dates[max(0, s - 1):]
+    f_sum = t_sum = None
+    m_start = m_end = short_end = None
+    for d in period:
+        ch = chips_by_date.get(d)
+        if not ch:
+            continue
+        t86 = ch.get("t86")
+        if t86 and d >= dates[s]:
+            f_sum = (f_sum or 0) + t86[0]
+            t_sum = (t_sum or 0) + t86[1]
+        mg = ch.get("margin")
+        if mg:
+            if m_start is None:
+                m_start = mg[0]
+            m_end, short_end = mg[0], mg[2]
+    margin_chg = (m_end / m_start - 1) * 100 if (m_start and m_end is not None and m_start >= 100) else None
+    short_ratio = short_end / m_end * 100 if (m_end and short_end is not None) else None
+    inst = (f_sum or 0) + (t_sum or 0) if (f_sum is not None or t_sum is not None) else None
+
+    # ---------- 續航評分(0-100),每項列出理由
+    bd = []
+
+    def add(group, label, pts, mx):
+        bd.append({"group": group, "label": label, "pts": r(pts, 1), "max": mx})
+        return pts
+
+    sc = 0
+    sc += add("型態", f"連續漲停 {consec} 根(區間共 {run_len} 根)",
+              {0: 0, 1: 6, 2: 10, 3: 14}.get(consec, 18), 18)
+    sc += add("型態", f"跳空缺口 {len(gaps)} 個" + (f"、一字鎖 {sum(one_word[s:e + 1])} 根" if any(one_word[s:e + 1]) else ""),
+              min(12, 6 * len(gaps)), 12)
+    if base_pos is None:
+        sc += add("基期", "一年基期資料不足", 8, 20)
+    elif base_pos <= 35:
+        sc += add("基期", f"低基期起漲(位於一年區間 {base_pos:.0f}% 位置)", 20, 20)
+    elif base_pos <= 65:
+        sc += add("基期", f"中基期起漲(一年區間 {base_pos:.0f}% 位置)", 12, 20)
+    else:
+        sc += add("基期", f"高基期起漲(一年區間 {base_pos:.0f}% 位置),留意末升段", 4, 20)
+    if status == "failed":
+        sc += add("缺口", "突破缺口已被回補,型態失敗", 0, 15)
+    elif gap_tested:
+        sc += add("缺口", "回測缺口但未回補,支撐有效", 15, 15)
+    elif status in ("running", "early"):
+        sc += add("缺口", "缺口尚未經過回測", 9, 15)
+    else:
+        sc += add("缺口", "缺口未回補,股價維持在缺口之上", 12, 15)
+    if status in ("running", "early"):
+        sc += add("量能", "仍在發動,尚無開板量縮資訊", 5, 10)
+    elif vol_dry:
+        sc += add("量能", "開板後量縮整理(籌碼安定)", 10, 10)
+    else:
+        sc += add("量能", "開板後量能仍大,籌碼換手中", 4, 10)
+    if inst is None:
+        sc += add("籌碼", "無法人資料", 5, 10)
+    elif inst > 0:
+        sc += add("籌碼", f"外資+投信期間買超 {inst:,.0f} 張", 10, 10)
+    else:
+        sc += add("籌碼", f"外資+投信期間賣超 {abs(inst):,.0f} 張(多為主力/隔日沖)", 3, 10)
+    if margin_chg is None:
+        sc += add("籌碼", "融資資料不足", 5, 10)
+    elif margin_chg <= 10:
+        sc += add("籌碼", f"融資期間 {margin_chg:+.0f}%,散戶未大量追價", 10, 10)
+    elif margin_chg <= 30:
+        sc += add("籌碼", f"融資期間 {margin_chg:+.0f}%,散戶開始上車", 5, 10)
+    else:
+        sc += add("籌碼", f"融資期間暴增 {margin_chg:+.0f}%,籌碼凌亂", 0, 10)
+    if short_ratio is not None and short_ratio >= 15:
+        sc += add("籌碼", f"券資比 {short_ratio:.0f}%,具軋空動能", 5, 5)
+    else:
+        sc += add("籌碼", "券資比不高", 1, 5)
+    alerts = extra.get("alerts", {}).get(code)
+    if alerts == "處置":
+        sc -= 8
+        bd.append({"group": "風險", "label": "已列處置股(分盤撮合,流動性下降)", "pts": -8, "max": 0})
+    elif alerts == "注意":
+        sc -= 3
+        bd.append({"group": "風險", "label": "已列注意股,再漲可能被處置", "pts": -3, "max": 0})
+    if status == "failed":  # 型態失敗:不論其他條件多好,都不應排在可操作名單前面
+        sc = min(sc, 30)
+    score = r(max(0, min(100, sc)), 0)
+
+    # ---------- 交易計畫
+    stop = round(k_bot * 0.985, 2)
+    if status == "breakout":  # 第二波沿均線操作,停損改用 10 日線
+        stop = round(min(ma10, c[last]) * 0.97, 2)
+    t1 = r(peak) if peak > c[last] * 1.03 else r(peak + 0.382 * (peak - base))
+    t2 = r(max(peak + 0.5 * (peak - base), base * 1.3))
+    if t2 <= t1:
+        t2 = r(t1 * 1.08)
+    entry_lo, entry_hi = r(k_top), r(k_top * 1.03)
+    if status == "breakout":  # 第二波的買點是沿 5 日線,而不是回到缺口
+        entry_lo, entry_hi = r(min(ma5, c[last])), r(c[last])
+    plans = {
+        "running": f"連板鎖單中不追價。等開板後量縮回測 {r(k_top)}(缺口上緣)不破再分批布局。",
+        "early": f"首根跳空漲停,尚未確認連板。可小量試單,收盤跌破 {r(k_bot)}(缺口下緣)即出場。",
+        "buyzone": f"股價回到缺口附近 {entry_lo}~{entry_hi},量縮守住缺口為主要買點,跌破 {stop} 停損。",
+        "consolidating": f"強勢整理中,距缺口仍有距離。等拉回 {entry_lo}~{entry_hi} 或帶量突破 {r(peak)} 再進場。",
+        "breakout": f"整理後再創新高(第二波)。可沿 5 日線 {r(ma5)} 操作,跌破 10 日線 {r(ma10)} 減碼、跌破 {stop} 出場。",
+        "failed": f"突破缺口已回補,型態失敗,不進場;持有者應停損出場。",
+    }
+    rr = None
+    if status not in ("failed", "running"):
+        ref = c[last]
+        if ref > stop and t1 > ref:
+            rr = r((t1 - ref) / (ref - stop), 2)
+
+    # ---------- 本股歷史同型態回測(排除本次)
+    hist = [_forward(c, h, ee, n) for ss, ee in events if ee < s - 1]
+
+    k0 = max(0, n - CHART_BARS)
+    ma5s = [None if i < 4 else r(mean(c[i - 4:i + 1])) for i in range(k0, n)]
+    ma20s = [None if i < 19 else r(mean(c[i - 19:i + 1])) for i in range(k0, n)]
+    return {
+        "code": code, "name": name, "industry": extra.get("industry"),
+        "kind": kind, "status": status,
+        "close": r(c[last]), "chg_pct": r((c[last] / c[last - 1] - 1) * 100),
+        "date": dates[last], "start": dates[s], "end": dates[e],
+        "days_since": days_since, "consec": consec, "run_len": run_len,
+        "gaps": len(gaps), "one_word": sum(one_word[s:e + 1]),
+        "base": r(base), "peak": r(peak), "peak_close": r(peak_close),
+        "run_gain": r(run_gain, 1), "total_gain": r(total_gain, 1),
+        "pullback": r((c[last] / peak - 1) * 100, 1),
+        "gap_bot": r(g_bot), "gap_top": r(g_top), "gap_date": dates[g_i],
+        "gap_filled": gap_filled, "gap_tested": gap_tested, "upper_filled": upper_filled,
+        "dist_gap": r((c[last] / k_top - 1) * 100, 1),
+        "key_bot": r(k_bot), "key_top": r(k_top), "key_date": dates[k_i],
+        "base_pos": r(base_pos, 0), "pre60": r(pre60, 1),
+        "pre_vol": r(pre_vol, 0), "burst_vol": r(burst_vol, 0), "post_vol": r(post_vol, 0), "vol_dry": vol_dry,
+        "vol": r(v[last], 0), "turnover": r(v[last] * c[last] / 1e5, 2),
+        "foreign": f_sum, "trust": t_sum, "margin_chg": r(margin_chg, 1), "short_ratio": r(short_ratio, 1),
+        "alert": alerts,
+        "score": score, "breakdown": bd,
+        "plan": {"text": plans[status], "stop": stop, "stop_pct": r((stop / c[last] - 1) * 100, 1),
+                 "entry_lo": entry_lo, "entry_hi": entry_hi,
+                 "target1": t1, "target1_pct": r((t1 / c[last] - 1) * 100, 1),
+                 "target2": t2, "target2_pct": r((t2 / c[last] - 1) * 100, 1), "rr": rr},
+        "history": hist,
+        "series": {"date": dates[k0:], "open": [r(x) for x in o[k0:]], "high": [r(x) for x in h[k0:]],
+                   "low": [r(x) for x in l[k0:]], "close": [r(x) for x in c[k0:]],
+                   "vol_lots": [r(x, 0) for x in v[k0:]], "ma5": ma5s, "ma20": ma20s,
+                   "lu": [bool(x) for x in lu[k0:]]},
+    }
+
+
+def _hist_stats(events: list[dict]) -> dict | None:
+    if not events:
+        return None
+    out = {"n": len(events)}
+    for k in ("r5", "r10", "r20", "max20"):
+        vals = [x[k] for x in events if x[k] is not None]
+        out[f"{k}_n"] = len(vals)
+        out[f"{k}_avg"] = r(mean(vals), 1) if vals else None
+        out[f"{k}_med"] = r(sorted(vals)[len(vals) // 2], 1) if vals else None
+        out[f"{k}_win"] = r(sum(1 for x in vals if x > 0) / len(vals) * 100, 0) if vals else None
+    vals = [x["max20"] for x in events if x["max20"] is not None]
+    out["hit30"] = r(sum(1 for x in vals if x >= 30) / len(vals) * 100, 0) if vals else None
+    out["hit10"] = r(sum(1 for x in vals if x >= 10) / len(vals) * 100, 0) if vals else None
+    return out
+
+
+# ---------------------------------------------------------------- 市場溫度計
+
+def _clamp(x):
+    return max(0.0, min(100.0, x))
+
+
+SENTI_LEVELS = [
+    (20, "極度恐慌", "fear2", "市場極度恐慌、人人急著下車。依策略這是「別人恐懼我貪婪」的時機:"
+                         "優先挑逆勢抗跌、缺口未補的強勢股分批布局,但每筆都要先設停損。"),
+    (40, "恐慌", "fear", "市場偏恐慌,賣壓較重。強勢股若能在這種環境守住缺口,續航力通常更好,可開始留意買點。"),
+    (60, "中性", "neutral", "情緒中性,依個股型態與籌碼操作即可。"),
+    (80, "貪婪", "greed", "市場偏樂觀、追價氣氛升溫。連板股容易出現隔日沖賣壓,進場要等回測、不追高。"),
+    (101, "極度貪婪", "greed2", "市場極度貪婪、槓桿偏高。這時候最要小心:新倉降低部位、既有部位分批停利,"
+                          "不要在連板末端追價。"),
+]
+
+
+def _level(score):
+    for hi, label, cls, advice in SENTI_LEVELS:
+        if score < hi:
+            return label, cls, advice
+    return SENTI_LEVELS[-1][1:]
+
+
+def market_sentiment(daily, idx_bars, vix_bars):
+    """回傳溫度計(含各分項)與歷史序列。idx_bars: [{'date','close'}](已含 MA60 所需長度)。"""
+    if not daily:
+        return None
+    idx_close = {b["date"]: b["close"] for b in idx_bars}
+    idx_dates = [b["date"] for b in idx_bars]
+    vix = sorted((b["date"], b["close"]) for b in (vix_bars or []))
+
+    def vix_before(d):
+        val = None
+        for vd, vc in vix:
+            if vd < d:
+                val = (vd, vc)
+            else:
+                break
+        return val
+
+    # 每日統計
+    stats = []
+    for d, snap in daily:
+        px = snap.get("px") or {}
+        common = [(c, p) for c, p in px.items() if is_common(c)]
+        up = sum(1 for _, p in common if (p.get("chg_pct") or 0) > 0)
+        dn = sum(1 for _, p in common if (p.get("chg_pct") or 0) < 0)
+        lu = sum(1 for _, p in common if snapshot_is_limit_up(p))
+        ld = sum(1 for _, p in common if (p.get("chg_pct") or 0) <= -9.5)
+        mg = snap.get("margin") or {}
+        mm = snap.get("market_margin")
+        maint = None
+        if mg and mm:
+            val = sum(m[0] * 1000 * px[c]["close"] for c, m in mg.items() if c in px)
+            maint = val / (mm * 1e8) * 100 if val else None
+        stats.append({"date": d, "up": up, "dn": dn, "lu": lu, "ld": ld, "mm": mm, "maint": maint,
+                      "foreign": (snap.get("bfi") or {}).get("foreign"),
+                      "turnover": sum(p.get("turnover") or 0 for p in px.values())})
+
+    def components(i):
+        st = stats[i]
+        d = st["date"]
+        out = []
+        vb = vix_before(d)
+        if vb:
+            out.append({"key": "vix", "name": "VIX 美股恐慌指數", "value": f"{vb[1]:.1f}",
+                        "score": _clamp((32 - vb[1]) / (32 - 13) * 100),
+                        "note": "VIX 越高代表全球資金越恐慌(>30 為恐慌、<15 為安逸)"})
+        if st["maint"]:
+            out.append({"key": "maint", "name": "大盤融資維持率(估)", "value": f"{st['maint']:.0f}%",
+                        "score": _clamp((st["maint"] - 140) / (185 - 140) * 100),
+                        "note": "低於 140% 容易引發斷頭賣壓(恐慌底);越高代表融資戶獲利豐厚、市場偏熱"})
+        mms = [x["mm"] for x in stats[max(0, i - 20):i + 1] if x["mm"]]
+        if len(mms) >= 6:
+            chg = (mms[-1] / mms[0] - 1) * 100
+            out.append({"key": "margin", "name": f"融資餘額 {len(mms) - 1} 日變化", "value": f"{chg:+.1f}%",
+                        "score": _clamp((chg + 6) / 12 * 100),
+                        "note": "融資快速增加 = 散戶槓桿追價,越高越要小心;融資大減 = 籌碼清洗"})
+        w = stats[max(0, i - 9):i + 1]
+        tot = sum(x["up"] + x["dn"] for x in w)
+        if tot:
+            ratio = sum(x["up"] for x in w) / tot
+            out.append({"key": "breadth", "name": f"近 {len(w)} 日上漲家數比", "value": f"{ratio * 100:.0f}%",
+                        "score": _clamp((ratio - 0.35) / 0.3 * 100), "note": "市場廣度:多數股票上漲代表情緒樂觀"})
+        lsum = sum(x["lu"] + x["ld"] for x in w)
+        if lsum:
+            share = sum(x["lu"] for x in w) / lsum
+            out.append({"key": "limits", "name": f"近 {len(w)} 日漲停/跌停", "value": f"{sum(x['lu'] for x in w)}/{sum(x['ld'] for x in w)}",
+                        "score": _clamp((share - 0.45) / 0.5 * 100), "note": "跌停家數多 = 恐慌殺盤;漲停家數多 = 投機熱絡"})
+        if d in idx_close:
+            k = idx_dates.index(d)
+            if k >= 59:
+                ma60 = mean(idx_close[x] for x in idx_dates[k - 59:k + 1])
+                bias = (idx_close[d] / ma60 - 1) * 100
+                out.append({"key": "bias", "name": "加權指數季線乖離", "value": f"{bias:+.1f}%",
+                            "score": _clamp((bias + 6) / 12 * 100), "note": "指數遠低於季線為恐慌,遠高於季線為過熱"})
+        fw = [x for x in w if x["foreign"] is not None and x["turnover"]]
+        if len(fw) >= 3:
+            f = sum(x["foreign"] for x in fw)
+            share = f / sum(x["turnover"] for x in fw) * 100  # 佔成交值 %
+            out.append({"key": "foreign", "name": f"外資近 {len(fw)} 日買賣超", "value": f"{f:+,.0f} 億",
+                        "score": _clamp((share + 8) / 16 * 100),
+                        "note": f"佔同期成交值 {share:+.1f}%;外資連續大賣通常伴隨市場恐慌"})
+        return out
+
+    hist = []
+    for i in range(len(stats)):
+        comps = components(i)
+        if len(comps) >= 4:
+            hist.append({"date": stats[i]["date"], "score": r(mean(x["score"] for x in comps), 0)})
+    comps = components(len(stats) - 1)
+    if not comps:
+        return None
+    score = mean(x["score"] for x in comps)
+    label, cls, advice = _level(score)
+    for x in comps:
+        x["score"] = r(x["score"], 0)
+    # 融資警示:融資分項偏熱時加註(融資餘額越高越要小心)
+    warn = []
+    mcomp = next((x for x in comps if x["key"] == "margin"), None)
+    if mcomp and mcomp["score"] >= 75:
+        warn.append(f"融資餘額快速增加({mcomp['value']}),散戶槓桿升溫,強勢股追價風險提高。")
+    mt = next((x for x in comps if x["key"] == "maint"), None)
+    if mt and mt["score"] <= 15:
+        warn.append(f"融資維持率偏低({mt['value']}),留意斷頭賣壓;斷頭潮出現後常是中期低點。")
+    vb = next((x for x in comps if x["key"] == "vix"), None)
+    if vb and vb["score"] <= 10:
+        warn.append(f"VIX 飆高({vb['value']}),全球避險情緒濃厚,台股易受外資提款影響。")
+    vix_series = [{"date": d_, "v": v_} for d_, v_ in vix[-120:]]
+    last = stats[-1]
+    return {
+        "score": r(score, 0), "label": label, "cls": cls, "advice": advice, "warnings": warn,
+        "components": comps, "history": hist[-60:],
+        "vix": vix_series,
+        "margin": [{"date": x["date"], "v": x["mm"]} for x in stats if x["mm"]][-45:],
+        "maint": [{"date": x["date"], "v": r(x["maint"], 1)} for x in stats if x["maint"]][-45:],
+        "today": {"lu": last["lu"], "ld": last["ld"], "mm": last["mm"], "maint": r(last["maint"], 1)},
+    }
+
+
+# ---------------------------------------------------------------- 題材(新聞)
+
+THEMES = ["AI", "CPO", "矽光子", "機器人", "伺服器", "散熱", "PCB", "ABF", "載板", "記憶體", "HBM", "先進封裝",
+          "半導體", "低軌衛星", "衛星", "無人機", "軍工", "國防", "重電", "電網", "儲能", "綠能", "太陽能", "風電",
+          "電動車", "車用", "光通訊", "5G", "網通", "生技", "新藥", "減重", "醫材", "漲價", "缺貨", "併購",
+          "公開收購", "轉型", "營收", "法說", "接單", "擴產", "庫藏股", "航運", "觀光", "營建", "資產", "鋼鐵", "銅", "金價"]
+
+
+def themes_of(news_items) -> list[str]:
+    text = " ".join(x.get("title", "") for x in news_items or [])
+    found = [t for t in THEMES if t in text]
+    return found[:5]
+
+
+AI_SYSTEM = """你是台股短線/波段操盤顧問,專長是解讀「連續跳空漲停」強勢股的題材與續航力。
+使用者會提供多檔股票的型態數據與近兩週新聞標題(JSON)。請針對每一檔輸出:
+- theme:漲停背後的題材,10 字以內(新聞看不出來就寫「題材不明」)
+- quality:只能是「實質題材」「概念炒作」「消息不明」三者之一
+  (實質題材=有營收/訂單/獲利/併購等具體事件;概念炒作=只有題材想像或族群輪動)
+- note:一句 40 字以內的操作提醒,要結合型態狀態(連板中/整理/回測缺口/失敗)
+只能根據提供的資料判斷,不要編造新聞裡沒有的事件或數字。
+只輸出一個 JSON 物件,格式:{"代號": {"theme": "...", "quality": "...", "note": "..."}, ...},不要有其他文字。"""
+
+
+def ai_notes(rows: list[dict]) -> dict | None:
+    """有 ANTHROPIC_API_KEY 時,請 Claude 判讀題材(非結構化新聞)。失敗時回傳 None。"""
+    if not rows or not os.environ.get("ANTHROPIC_API_KEY"):
+        return None
+    try:
+        import anthropic
+    except ImportError:
+        return None
+    payload = [{
+        "code": x["code"], "name": x["name"], "industry": x.get("industry"), "status": STATUS_LABEL[x["status"]],
+        "連續漲停": x["consec"], "跳空缺口": x["gaps"], "起漲以來漲幅%": x["total_gain"],
+        "基期位置%": x["base_pos"], "融資期間變化%": x["margin_chg"],
+        "news": [n["title"] for n in x.get("news", [])[:8]],
+    } for x in rows[:20]]
+    try:
+        client = anthropic.Anthropic()
+        resp = client.beta.messages.create(
+            model=MODEL,
+            max_tokens=16000,
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+            output_config={"effort": "low"},
+            system=AI_SYSTEM,
+            messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+        )
+    except Exception as e:  # API 異常時退回規則式題材標籤,不影響網站產生
+        print(f"[warn] 飆股題材 AI 判讀失敗,改用關鍵字標籤: {e!r}")
+        return None
+    if resp.stop_reason == "refusal":
+        return None
+    text = "".join(b.text for b in resp.content if b.type == "text").strip()
+    start, end = text.find("{"), text.rfind("}")
+    try:
+        data = json.loads(text[start:end + 1])
+    except ValueError:
+        print("[warn] 飆股題材 AI 回應不是合法 JSON,改用關鍵字標籤")
+        return None
+    return {str(k): v for k, v in data.items() if isinstance(v, dict)}
+
+
+# ---------------------------------------------------------------- 組合
+
+STATUS_LABEL = {
+    "running": "連板鎖單中", "early": "首根跳空漲停", "buyzone": "回測缺口・買點區",
+    "consolidating": "強勢整理", "breakout": "整理後再創新高", "failed": "缺口回補・型態失敗",
+}
+STATUS_ORDER = ["buyzone", "breakout", "consolidating", "running", "early", "failed"]
+
+
+def build_zone(ctx, names, idx_bars):
+    daily = ctx["daily"]
+    sz = ctx.get("surge") or {}
+    chips_by_date = {}
+    for d, snap in daily:
+        chips_by_date[d] = {"t86_all": snap.get("t86") or {}, "margin_all": snap.get("margin") or {}}
+
+    rows = []
+    for code in sz.get("candidates") or []:
+        bars = (sz.get("bars") or {}).get(code) or bars_from_snapshots(code, daily)
+        if not bars:
+            continue
+        # TWSE 收盤比 Yahoo 早:若 Yahoo 少了最新一天,用快照補上
+        latest_d, latest = daily[-1]
+        p = (latest.get("px") or {}).get(code)
+        if p and p.get("open") and bars[-1]["date"] < latest_d:
+            bars = bars + [{"date": latest_d, "open": p["open"], "high": p["high"], "low": p["low"],
+                            "close": p["close"], "volume": int((p.get("vol") or 0) * 1000)}]
+        cbd = {d: {"t86": x["t86_all"].get(code), "margin": x["margin_all"].get(code)} for d, x in chips_by_date.items()}
+        try:
+            a = analyze(code, bars, names.get(code, code), cbd,
+                        {"industry": ctx["industries"].get(code), "alerts": sz.get("alerts") or {}})
+        except Exception as e:  # 單檔異常不影響整體
+            print(f"[warn] 飆股分析 {code} 失敗: {e!r}")
+            a = None
+        if a and a["date"] == latest_d:
+            news = (sz.get("news") or {}).get(code) or []
+            a["news"] = news[:6]
+            a["themes"] = themes_of(news)
+            rows.append(a)
+
+    pooled = [ev for x in rows for ev in x["history"]]
+    for x in rows:
+        x["hist"] = _hist_stats(x.pop("history"))
+    rows.sort(key=lambda x: (x["status"] == "failed", -x["score"]))
+    rows = rows[:MAX_CANDIDATES]
+
+    senti = market_sentiment(daily, idx_bars, sz.get("vix"))
+    # 大盤環境加減分:越恐慌越有利(強勢股抗跌、資金集中),極度貪婪扣分
+    if senti:
+        adj = 6 if senti["score"] < 25 else 3 if senti["score"] < 45 else -4 if senti["score"] >= 80 else 0
+        if adj:
+            for x in rows:
+                x["score"] = r(max(0, min(100, x["score"] + adj)), 0)
+                x["breakdown"].append({"group": "大盤", "label": f"市場溫度 {senti['score']:.0f}({senti['label']})",
+                                       "pts": adj, "max": 6})
+    counts = {k: sum(1 for x in rows if x["status"] == k) for k in STATUS_ORDER}
+    return {
+        "sentiment": senti,
+        "rows": rows,
+        "counts": counts,
+        "status_label": STATUS_LABEL,
+        "status_order": STATUS_ORDER,
+        "pooled": _hist_stats(pooled),
+        "scanned": len(sz.get("candidates") or []),
+        "ai": False,
+    }
+
+
+def attach_ai(zone):
+    """在網站資料產生後,用 Claude 為候選股補上題材判讀(沒有 key 就略過)。"""
+    rows = [x for x in zone["rows"] if x["status"] != "failed"]
+    notes = ai_notes(rows)
+    if not notes:
+        return zone
+    for x in zone["rows"]:
+        n = notes.get(x["code"])
+        if n:
+            x["ai"] = {"theme": str(n.get("theme", ""))[:20], "quality": str(n.get("quality", ""))[:8],
+                       "note": str(n.get("note", ""))[:80]}
+    zone["ai"] = True
+    return zone

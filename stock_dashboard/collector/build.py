@@ -8,6 +8,7 @@ import pandas as pd
 from . import analysis as A
 from . import indicators as I
 from . import news as N
+from . import surge as SG
 
 CHART_BARS = 260  # 網站上顯示約一年的 K 線
 SERIES_COLS = ["open", "high", "low", "close", "vol_lots", "ma5", "ma10", "ma20", "ma60", "ma120", "ma240",
@@ -123,6 +124,13 @@ def build(ctx, watchlist):
         "news": N.tag(ctx["market_news"]),
     }
     screens = A.screener(daily, ctx["valuation"], ctx["revenue"], names)
+    try:
+        surge = SG.build_zone(ctx, names, ctx["index_bars"])
+        for x in surge["rows"]:
+            x["news"] = N.tag(x.get("news") or [])
+    except Exception as e:  # 飆股專區異常不應讓整個網站失敗
+        print(f"[warn] 飆股專區產生失敗: {e!r}")
+        surge = None
     stocks.sort(key=lambda x: -x["score"])
     return {
         "demo": ctx["demo"],
@@ -134,4 +142,5 @@ def build(ctx, watchlist):
         "market": market,
         "stocks": stocks,
         "screens": screens,
+        "surge": surge,
     }

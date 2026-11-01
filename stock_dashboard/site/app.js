@@ -442,12 +442,174 @@
     bindGo();
   }
 
+  // ---------------------------------------------------------------- 飆股專區
+  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", failed: "bear" };
+  let surgeTab = store.get("surgeTab", "all");
+  let surgeSel = null;
+
+  function sentiGauge(sv) {
+    return `<div class="gauge senti-gauge"><i style="left:${Math.max(0, Math.min(100, sv))}%"></i></div>
+      <div class="gauge-scale"><span>極度恐慌</span><span>恐慌</span><span>中性</span><span>貪婪</span><span>極度貪婪</span></div>`;
+  }
+
+  function viewSurge() {
+    const Z = D.surge;
+    if (!Z) { $app.innerHTML = '<section class="panel"><p class="empty">飆股專區資料尚未產生(下一次排程執行後就會出現)</p></section>'; return; }
+    const S = Z.sentiment, L = Z.status_label;
+    const rows = Z.rows.filter((x) => surgeTab === "all" ? x.status !== "failed" : x.status === surgeTab);
+    if (!surgeSel || !Z.rows.find((x) => x.code === surgeSel)) surgeSel = (rows[0] || Z.rows[0] || {}).code;
+    const tabs = [["all", "可操作名單", Z.rows.filter((x) => x.status !== "failed").length]].concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
+    $app.innerHTML = `
+    ${S ? `<section class="panel regime senti">
+      <div><div class="label">市場溫度計 ・ 恐慌 vs 貪婪</div>
+        <div class="regime-label senti-${S.cls}"><span class="num">${fmt(S.score, 0)}</span> ${esc(S.label)}</div></div>
+      <div>${sentiGauge(S.score)}<p style="margin:10px 0 0">${esc(S.advice)}</p>
+        ${S.warnings.length ? `<ul class="sig" style="margin-top:8px">${S.warnings.map((w) => `<li class="info">${esc(w)}</li>`).join("")}</ul>` : ""}</div>
+      <div class="senti-comps" style="grid-column:1/-1">${S.components.map((c) => `<div class="sc" title="${esc(c.note)}">
+        <span class="label">${esc(c.name)}</span><b class="num">${esc(c.value)}</b>
+        <span class="bar"><i style="width:${c.score}%;background:var(${c.score < 40 ? "--accent" : c.score < 60 ? "--warn" : "--up"})"></i></span><small class="muted">${esc(c.note)}</small></div>`).join("")}</div>
+    </section>
+    <div class="grid g2">
+      <section class="panel"><h2>溫度計走勢 <small>0 = 極度恐慌、100 = 極度貪婪</small></h2>
+        ${lineSVG(S.history.map((x) => ({ date: x.date, v: x.score })), { color: "var(--accent)" })}
+        <div class="ph" style="margin-top:12px"><span style="font-size:13px">VIX 美股恐慌指數</span><small>> 30 恐慌、< 15 安逸</small></div>
+        ${lineSVG(S.vix, { color: "var(--down)" })}
+      </section>
+      <section class="panel"><h2>融資水位 <small>融資餘額越高越要小心;維持率跌破 140% 易有斷頭潮</small></h2>
+        <div class="kv" style="margin-bottom:8px">
+          <div><span class="label">大盤融資餘額</span><b>${S.today.mm == null ? "—" : int(S.today.mm) + " 億"}</b></div>
+          <div><span class="label">融資維持率(估)</span><b>${S.today.maint == null ? "—" : fmt(S.today.maint, 1) + "%"}</b></div>
+          <div><span class="label">今日漲停 / 跌停</span><b><span class="up">${int(S.today.lu)}</span> / <span class="down">${int(S.today.ld)}</span></b></div>
+        </div>
+        ${lineSVG(S.margin, { color: "var(--warn)" })}
+        <div class="ph" style="margin-top:8px"><span style="font-size:13px">融資維持率(估算)</span><small>Σ 個股融資張數 × 收盤價 ÷ 融資金額</small></div>
+        ${lineSVG(S.maint, { color: "var(--accent)", unit: "%" })}
+      </section>
+    </div>` : ""}
+    <section class="panel">
+      <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
+      <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-st="${k}" class="${surgeTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
+      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
+      ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
+        <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}</td>
+        <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td>
+        <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
+        <td>${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)}</td><td>${signed((x.foreign ?? 0) + (x.trust ?? 0))}</td>
+        <td class="txt">${x.ai ? esc(x.ai.theme) : esc((x.themes || []).join("、") || "—")}</td></tr>`).join("")}
+      </tbody></table></div>` : '<p class="empty">目前沒有符合這個狀態的股票</p>'}
+    </section>
+    <section class="panel" id="surgeDetail"></section>
+    <div class="grid g2">
+      <section class="panel"><h2>型態歷史統計 <small>候選股過去兩年出現同型態後的表現(型態結束日收盤進場)</small></h2>${histTable(Z.pooled)}
+        <p class="muted" style="font-size:12px;margin:8px 0 0">樣本只含目前入選的股票(倖存者偏差,數字會偏樂觀),用來感受「這種型態通常走多遠」,不是勝率保證。</p></section>
+      <section class="panel"><h2>選股邏輯與紀律</h2><ul class="sig">
+        <li class="bull"><span><b>型態</b>:連續 2 根以上漲停,且至少一根「跳空漲停」(當日最低 > 前日最高),代表主力不計成本搶籌碼。</span></li>
+        <li class="bull"><span><b>缺口是生命線</b>:回測缺口不補 = 型態成立;缺口被完全回補 = 型態失敗,立刻出場。</span></li>
+        <li class="bull"><span><b>買點</b>:不追連板,等「開板後量縮、回測缺口不破」或「整理後帶量再創新高」。</span></li>
+        <li class="bull"><span><b>低基期優先</b>:起漲前位於一年區間低檔的續航力較好;高檔連板容易是末升段。</span></li>
+        <li class="bear"><span><b>融資暴增要小心</b>:連板期間融資大增 = 散戶追價,後續容易震盪。</span></li>
+        <li class="info"><span><b>看大盤溫度</b>:市場越恐慌,能逆勢鎖漲停的股票越珍貴;極度貪婪時降低部位。</span></li>
+        <li class="info"><span><b>注意/處置股</b>:連續漲停常被列入,處置期間分盤撮合、流動性變差,部位要更小。</span></li>
+      </ul></section>
+    </div>`;
+    $app.querySelectorAll("[data-st]").forEach((b) => b.addEventListener("click", () => { surgeTab = b.getAttribute("data-st"); store.set("surgeTab", surgeTab); surgeSel = null; destroyCharts(); viewSurge(); }));
+    $app.querySelectorAll("[data-sv]").forEach((tr) => tr.addEventListener("click", () => {
+      surgeSel = tr.getAttribute("data-sv");
+      $app.querySelectorAll("[data-sv]").forEach((x) => x.classList.toggle("sel", x === tr));
+      renderSurgeDetail(true);
+    }));
+    renderSurgeDetail(false);
+  }
+
+  function histTable(h) {
+    if (!h) return '<p class="empty">尚無歷史樣本(需要兩年日線)</p>';
+    const cell = (k) => `<td>${h[k + "_win"] == null ? "—" : h[k + "_win"] + "%"}</td><td>${pct(h[k + "_avg"], 1)}</td><td>${pct(h[k + "_med"], 1)}</td>`;
+    return `<div class="tbl-wrap"><table class="t"><thead><tr><th>持有</th><th>上漲機率</th><th>平均報酬</th><th>中位數</th></tr></thead><tbody>
+      <tr><td>5 日</td>${cell("r5")}</tr><tr><td>10 日</td>${cell("r10")}</tr><tr><td>20 日</td>${cell("r20")}</tr>
+      <tr><td>20 日內最高</td>${cell("max20")}</tr></tbody></table></div>
+      <p class="muted" style="font-size:12.5px;margin:6px 0 0">樣本 ${h.n} 次 ・ 20 日內曾漲 10% 以上 <b>${h.hit10 ?? "—"}%</b>、曾漲 30% 以上 <b>${h.hit30 ?? "—"}%</b></p>`;
+  }
+
+  function renderSurgeDetail(scroll) {
+    const el = document.getElementById("surgeDetail");
+    const x = D.surge.rows.find((r) => r.code === surgeSel);
+    destroyCharts();
+    if (!x) { el.hidden = true; return; }
+    el.hidden = false;
+    const L = D.surge.status_label, p = x.plan;
+    const groups = {};
+    x.breakdown.forEach((b) => { (groups[b.group] = groups[b.group] || []).push(b); });
+    el.innerHTML = `
+      <div class="stock-head">
+        <div><div class="stock-title">${esc(x.name)}<span class="cd">${esc(x.code)}${x.industry ? " ・ " + esc(x.industry) : ""}</span></div>
+          <div class="row" style="margin-top:6px">${chip(L[x.status], SURGE_CHIP[x.status])}${x.alert ? chip(x.alert + "股", x.alert === "處置" ? "alert" : "warn") : ""}
+            <span class="muted">續航分 <b class="num" style="color:var(--ink)">${fmt(x.score, 0)}</b> / 100</span>
+            <span class="muted">起漲 ${esc(x.start)} ・ 型態結束 ${esc(x.end)}${x.days_since ? `(${x.days_since} 個交易日前)` : "(今天)"}</span></div></div>
+        <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
+      </div>
+      ${x.ai ? `<p class="view ai-note" style="margin-top:12px">${chip(x.ai.quality || "AI", x.ai.quality === "實質題材" ? "bull" : x.ai.quality === "概念炒作" ? "warn" : "neutral")} <b>${esc(x.ai.theme)}</b> — ${esc(x.ai.note)}</p>` : ""}
+      <div class="legend" style="margin-top:10px"><span><i style="background:#e8a33d"></i>MA5</span><span><i style="background:#3f86e0"></i>MA20</span><span><i style="background:var(--up)"></i>缺口區(上緣/下緣)</span><span><i style="background:var(--down)"></i>停損</span><span><i style="background:var(--muted)"></i>起漲價</span><span>▲ 漲停</span></div>
+      <div id="surgeChart" class="chart-box" style="height:340px"></div>
+      <div class="grid g2" style="margin-top:12px">
+        <div class="plan">
+          <div class="ph"><span>操作計畫</span>${p.rr != null ? `<small>風險報酬比 1 : ${fmt(p.rr, 2)}</small>` : ""}</div>
+          <div>${esc(p.text)}</div>
+          <div class="levels">
+            <div class="lv"><span class="label">${x.status === "breakout" ? "買點區(5 日線)" : "買點區(缺口上緣)"}</span><b>${fmt(p.entry_lo)}</b><small>~ ${fmt(p.entry_hi)}</small></div>
+            <div class="lv stop"><span class="label">停損</span><b>${fmt(p.stop)}</b><small>${p.stop_pct}%</small></div>
+            <div class="lv tgt"><span class="label">目標 1 / 2</span><b>${fmt(p.target1)}</b><small>+${p.target1_pct}% ・ ${fmt(p.target2)}</small></div>
+          </div>
+          <div class="kv">
+            <div><span class="label">起漲價 → 最高</span><b style="font-size:13px">${fmt(x.base)} → ${fmt(x.peak)}</b></div>
+            <div><span class="label">連板 / 漲停 / 缺口</span><b>${x.consec} / ${x.run_len} / ${x.gaps}</b></div>
+            <div><span class="label">一字鎖</span><b>${x.one_word} 根</b></div>
+            <div><span class="label">起漲以來 / 距高點</span><b style="font-size:13px">${pct(x.total_gain, 1)} / ${pct(x.pullback, 1)}</b></div>
+            <div><span class="label">支撐缺口 ${esc((x.key_date || "").slice(5))}</span><b style="font-size:13px">${fmt(x.key_bot)}~${fmt(x.key_top)}</b></div>
+            <div><span class="label">突破缺口狀態</span><b style="font-size:13px">${x.gap_filled ? '<span class="down">已回補</span>' : x.gap_tested ? "回測未補" : "未回測"}</b></div>
+            <div><span class="label">基期位置(一年)</span><b>${x.base_pos == null ? "—" : fmt(x.base_pos, 0) + "%"}</b></div>
+            <div><span class="label">起漲前 60 日</span><b>${pct(x.pre60, 1)}</b></div>
+            <div style="grid-column:span 2"><span class="label">量能(張):起漲前 → 爆量 → 近 5 日</span><b style="font-size:13px">${int(x.pre_vol)}→${int(x.burst_vol)}→${int(x.post_vol)}</b></div>
+            <div><span class="label">外資 / 投信(張)</span><b style="font-size:13px">${signed(x.foreign)} / ${signed(x.trust)}</b></div>
+            <div><span class="label">融資變化 / 券資比</span><b style="font-size:13px">${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)} / ${x.short_ratio == null ? "—" : fmt(x.short_ratio, 0) + "%"}</b></div>
+          </div>
+        </div>
+        <div>
+          <h2 style="font-size:15px;margin-bottom:8px">續航分明細</h2>
+          <div class="tbl-wrap"><table class="t"><tbody>${Object.entries(groups).map(([g, items]) => items.map((b, i) => `<tr><td class="l muted" style="font-family:var(--font-body)">${i === 0 ? g : ""}</td><td class="l txt" style="color:var(--ink)">${esc(b.label)}</td><td>${signed(b.pts, 1).replace("+", "")}${b.max ? " / " + b.max : ""}</td></tr>`).join("")).join("")}</tbody></table></div>
+          <h2 style="font-size:15px;margin:14px 0 8px">本股過去同型態</h2>${x.hist ? histTable(x.hist) : '<p class="muted" style="margin:0">近兩年沒有出現過同型態(或資料不足)。</p>'}
+        </div>
+      </div>
+      <h2 style="font-size:15px;margin:16px 0 4px">近期新聞 ${x.themes && x.themes.length ? `<small class="muted" style="font-weight:400">題材關鍵字:${esc(x.themes.join("、"))}</small>` : ""}</h2>${newsList(x.news)}
+      <p style="margin:8px 0 0;font-size:13px"><a href="${quoteUrl(x.code)}" target="_blank" rel="noopener">在 Yahoo 股市查看即時報價 →</a></p>`;
+    surgeChart(document.getElementById("surgeChart"), x);
+    if (scroll) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function surgeChart(el, x) {
+    const S = x.series;
+    const ch = priceChart(el, S, { mas: [5, 20] });
+    if (!ch) return;
+    const LC = window.LightweightCharts;
+    const anchor = ch.addLineSeries({ color: "transparent", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    anchor.setData(S.date.map((t, i) => ({ time: t, value: S.close[i] })));
+    const line = (price, color, title, style = 2) => anchor.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
+    line(x.key_top, css("--up"), "缺口上緣");
+    line(x.key_bot, css("--up"), "缺口下緣");
+    line(x.plan.stop, css("--down"), "停損", 0);
+    line(x.base, css("--muted"), "起漲");
+    if (LC) anchor.setMarkers(S.date.map((t, i) => S.lu[i] ? { time: t, position: "aboveBar", color: css("--up"), shape: "arrowUp", text: "" } : null).filter(Boolean));
+    const n = S.date.length;
+    ch.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 70), to: n + 2 });
+  }
+
   function knownPrice(code) {
     const s = stockByCode(code);
     if (s) return { close: s.close, name: s.name, chg_pct: s.chg_pct, plan: s.plan };
     const t = D.market.top_turnover.find((x) => x.code === code);
     if (t) return { close: t.close, name: t.name, chg_pct: t.chg_pct };
     for (const sc of D.screens) { const r = sc.rows.find((x) => x.code === code); if (r) return { close: r.close, name: r.name, chg_pct: r.chg_pct }; }
+    const z = D.surge && D.surge.rows.find((x) => x.code === code);
+    if (z) return { close: z.close, name: z.name, chg_pct: z.chg_pct, plan: { stop: z.plan.stop, target1: z.plan.target1 } };
     return null;
   }
 
@@ -529,6 +691,14 @@
       </ul>
       <h3>大盤多空與持股水位</h3>
       <p>以指數與月線/季線位置及斜率、MACD、外資 5 日買賣超、漲跌家數計分。大盤偏空時,即使個股評分高也建議降低部位。</p>
+      <h3>飆股專區(連續跳空漲停)</h3>
+      <ul>
+        <li>每天掃描全體上市股票,找出近 20 個交易日內「連續 2 根以上漲停、且至少一根跳空漲停」的股票,用兩年日線精確判斷型態。</li>
+        <li>依狀態分類:回測缺口・買點區、整理後再創新高、強勢整理、連板鎖單中、首根跳空漲停(早期觀察)、缺口回補・型態失敗。</li>
+        <li>續航分(0–100):型態強度 30、基期位置 20、缺口是否守住 15、開板後量縮 10、法人與融資籌碼 25,再依市場溫度加減分。</li>
+        <li>市場溫度計綜合 VIX、融資維持率、融資餘額變化、漲跌家數、漲停/跌停家數、指數季線乖離、外資買賣超。恐慌越高越有利於布局強勢股;融資越高越要小心。</li>
+        <li>設定 ANTHROPIC_API_KEY 後,會由 Claude 閱讀每檔候選股的新聞,判讀漲停題材是「實質題材」還是「概念炒作」。</li>
+      </ul>
       <h3>注意事項</h3>
       <ul>
         <li>資料為收盤後公開資料,不是即時報價;盤中請以券商系統為準。</li>
@@ -545,7 +715,7 @@
     const h = (location.hash || "#overview").slice(1);
     let view = h, code = null;
     if (h.startsWith("stock")) { view = "stock"; code = h.split("-")[1] || store.get("lastStock", null); }
-    const views = { overview: viewOverview, watchlist: viewWatchlist, stock: () => viewStock(code), radar: viewRadar, portfolio: viewPortfolio, guide: viewGuide };
+    const views = { overview: viewOverview, watchlist: viewWatchlist, stock: () => viewStock(code), radar: viewRadar, surge: viewSurge, portfolio: viewPortfolio, guide: viewGuide };
     (views[view] || viewOverview)();
     document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.view === (views[view] ? view : "overview")));
     window.scrollTo(0, 0);

@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from collector import brief, build, report  # noqa: E402
+from collector import brief, build, report, surge  # noqa: E402
 from collector.collect import collect_live  # noqa: E402
 from collector.demo import collect_demo  # noqa: E402
 
@@ -49,6 +49,8 @@ def main():
     ctx = collect_demo(watchlist) if args.demo else collect_live(ROOT, watchlist)
     dash = build.build(ctx, watchlist)
     dash["brief"] = brief.make_brief(dash)
+    if dash.get("surge"):
+        surge.attach_ai(dash["surge"])
     dash = _clean(dash)
 
     out = Path(args.out)
@@ -59,6 +61,13 @@ def main():
     print(f"已產生 {out / 'data' / 'dashboard.json'} 與 {report_path}")
     print(f"自選股 {len(dash['stocks'])} 檔、選股清單 {len(dash['screens'])} 組、"
           f"摘要來源 {dash['brief']['source']}、資料完整度 {'完整' if dash['data_complete'] else '融資券待更新'}")
+    sz = dash.get("surge")
+    if sz:
+        senti = sz["sentiment"] or {}
+        print(f"飆股專區:候選 {len(sz['rows'])} 檔(掃描 {sz['scanned']} 檔)、市場溫度 {senti.get('score')} {senti.get('label')}"
+              f"、題材判讀 {'Claude' if sz['ai'] else '關鍵字'}")
+        for x in sz["rows"][:8]:
+            print(f"  {x['code']} {x['name']:<6} {sz['status_label'][x['status']]:<10} 續航 {x['score']:>3.0f}  連板 {x['consec']} 缺口 {x['gaps']}")
     for s in dash["stocks"]:
         print(f"  {s['code']} {s['name']:<6} {s['close']:>9} {s['chg_pct']:+6.2f}%  {s['score']:5.1f} 分  {s['rating']}")
 

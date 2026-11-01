@@ -60,6 +60,18 @@ def email_html(dash: dict) -> str:
         f"<p style='margin:4px 0'><b>{html.escape(sc['title'])}</b>:"
         + html.escape("、".join(f"{r['code']} {r['name']}" for r in sc["rows"][:6]) or "今日無符合") + "</p>"
         for sc in dash["screens"])
+    surge = ""
+    sz = dash.get("surge")
+    if sz:
+        se = sz.get("sentiment") or {}
+        lbl = sz["status_label"]
+        picks = [x for x in sz["rows"] if x["status"] != "failed"][:8]
+        surge = (f"<h3 style='margin:18px 0 6px'>飆股專區(連續跳空漲停)</h3>"
+                 + (f"<p style='margin:4px 0'>市場溫度 <b>{se['score']:.0f}</b>({html.escape(se['label'])}):"
+                    f"{html.escape(se['advice'])}</p>" if se else "")
+                 + "".join(f"<p style='margin:3px 0'><b>{x['code']} {html.escape(x['name'])}</b> ・ {lbl[x['status']]} ・ "
+                           f"續航 {x['score']:.0f} ・ 缺口 {x['key_bot']}~{x['key_top']} ・ 停損 {x['plan']['stop']}</p>" for x in picks)
+                 + ("" if picks else "<p style='margin:4px 0'>今日無符合型態的股票</p>"))
     link = (f"<p><a href='{html.escape(url)}' style='color:#1a73e8'>開啟完整分析網站 →</a></p>" if url else
             "<p>完整互動版請開啟附件 <b>report.html</b>(手機可直接用瀏覽器開啟)。</p>")
     return f"""<div style="font-family:-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;max-width:760px;color:#202124">
@@ -73,6 +85,7 @@ def email_html(dash: dict) -> str:
 <table style="border-collapse:collapse;width:100%;font-size:13px" border="0">
 <tr style="background:#f1f3f4"><th align="left" style="padding:6px 8px">股票</th><th>收盤</th><th>漲跌</th><th>評分</th><th align="left">重點訊號</th><th align="left">計畫</th></tr>
 {''.join(rows)}</table>
+{surge}
 <h3 style="margin:18px 0 6px">選股雷達</h3>{screens}
 <p style="color:#80868b;font-size:12px;margin-top:20px">本報告為公開資料之機械式整理分析,不構成投資建議,投資盈虧請自負。</p>
 </div>"""
