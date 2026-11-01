@@ -8,7 +8,11 @@
   3. 最好的買點通常不是連板當下,而是「開板後量縮整理、回測缺口不破」或「整理後再創新高」。
   4. 低基期起漲(起漲前位於一年區間的低檔)續航力較好;高檔連板容易是末升段。
   5. 融資在連板期間暴增 = 散戶追價,後續籌碼凌亂;法人同步買超較健康。
-  6. 大盤環境:市場越恐慌,強勢股越容易成為資金避風港(逆勢抗跌);
+  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線,
+     以及月 K 的 3/6/12 月均線)。日線再漂亮,上方壓著大均線就只是空頭格局裡的反彈,剔除。
+  7. 量能門檻:漲停日均量、平日均量,以及「起漲前 60 日的成交量中位數」都要達標;
+     平常沒人交易、只有漲停那幾天爆量的冷門股,進出困難,剔除。
+  8. 大盤環境:市場越恐慌,強勢股越容易成為資金避風港(逆勢抗跌);
      市場極度貪婪、融資高檔時,要提高警覺、降低部位。
 
 市場溫度計 0(極度恐慌)~100(極度貪婪),由七項公開資料等權平均:
@@ -28,11 +32,14 @@ from .analysis import r
 
 LOOKBACK = 20         # 型態必須在最近 20 個交易日內發生
 MAX_CANDIDATES = 60   # 網站最多顯示幾檔(依續航分排序)
-CHART_BARS = 90       # 每檔附的 K 線根數
+CHART_BARS = 160      # 每檔附的日 K 根數(週 K / 月 K 另外附全部兩年)
 MODEL = "claude-opus-5-5"
 # 量能門檻(張):成交量太小的股票進出困難、容易被少數人拉抬,直接剔除
 MIN_LU_VOL = 1000     # 漲停日平均成交量
 MIN_DAY_VOL = 800     # 近 20 日「非漲停日」平均成交量
+MIN_BASE_VOL = 300    # 起漲前 60 日的成交量中位數(平常就要有人交易,不是只有漲停那幾天爆量)
+# 大均線:(日線天數, 月 K 月數, 名稱)。收盤必須站上全部,否則上方有大均線壓力
+BIG_MAS = ((60, 3, "季線"), (120, 6, "半年線"), (240, 12, "年線"))
 
 
 # ---------------------------------------------------------------- 漲停價計算
@@ -134,16 +141,69 @@ def _avg_pos(vals):
     return mean(vals) if vals else None
 
 
+def _median_pos(vals):
+    vals = sorted(x for x in vals if x > 0)
+    if not vals:
+        return None
+    m = len(vals) // 2
+    return vals[m] if len(vals) % 2 else (vals[m - 1] + vals[m]) / 2
+
+
 def volume_check(v, lu, s, e, end):
-    """量能門檻:漲停日平均量 ≥ MIN_LU_VOL,且 end 往前 20 日的非漲停日平均量 ≥ MIN_DAY_VOL。"""
+    """量能門檻:漲停日平均量 ≥ MIN_LU_VOL、end 往前 20 日的非漲停日平均量 ≥ MIN_DAY_VOL,
+    且起漲前 60 日的成交量中位數 ≥ MIN_BASE_VOL(資料不足 20 日就不判斷這一項)。"""
     lu_avg = _avg_pos([v[i] for i in range(s, e + 1) if lu[i]])
     day_avg = _avg_pos([v[i] for i in range(max(0, end - 19), end + 1) if not lu[i]])
+    pre = v[max(0, s - 60):s]
+    base_med = _median_pos(pre) if sum(1 for x in pre if x > 0) >= 20 else None
     reasons = []
+    if base_med is not None and base_med < MIN_BASE_VOL:
+        reasons.append(f"起漲前 60 日量中位數 {base_med:,.0f} 張 < {MIN_BASE_VOL:,}(平常交易冷清)")
     if lu_avg is None or lu_avg < MIN_LU_VOL:
         reasons.append(f"漲停日均量 {0 if lu_avg is None else lu_avg:,.0f} 張 < {MIN_LU_VOL:,}")
     if day_avg is None or day_avg < MIN_DAY_VOL:
         reasons.append(f"平日均量 {0 if day_avg is None else day_avg:,.0f} 張 < {MIN_DAY_VOL:,}")
-    return lu_avg, day_avg, reasons
+    return lu_avg, day_avg, base_med, reasons
+
+
+def resample(dates, o, h, l, c, v, unit):
+    """日 K 轉週 K / 月 K。時間用該週期第一個交易日;最後一根是尚未走完的週期(跟看盤軟體一樣)。"""
+    from datetime import date as _d
+    out = []
+    for i, d in enumerate(dates):
+        if unit == "M":
+            key = d[:7]
+        else:
+            y, w, _ = _d.fromisoformat(d).isocalendar()
+            key = (y, w)
+        if out and out[-1]["key"] == key:
+            b = out[-1]
+            b["high"] = max(b["high"], h[i]); b["low"] = min(b["low"], l[i]); b["close"] = c[i]; b["vol"] += v[i]
+            b["end"] = i
+        else:
+            out.append({"key": key, "date": d, "open": o[i], "high": h[i], "low": l[i], "close": c[i], "vol": v[i], "end": i})
+    return out
+
+
+def ma_check(dates, o, h, l, c, v, end):
+    """大均線檢查:在 end 這天,收盤是否站上季線/半年線/年線(日線與月 K 都要)。
+    回傳 (各均線明細, 壓在上方的均線名稱)。資料不足的均線略過不判斷。"""
+    px = c[end]
+    months = resample(dates[:end + 1], o, h, l, c, v, "M")
+    mc = [m["close"] for m in months]
+    info, over = [], []
+    for dn, mn, label in BIG_MAS:
+        dv = mean(c[end - dn + 1:end + 1]) if end + 1 >= dn else None
+        mv = mean(mc[-mn:]) if len(mc) >= mn else None
+        avail = [x for x in (dv, mv) if x is not None]
+        bad = [x for x in avail if px < x]
+        # 距離以較高(較嚴格)的那條為準:正值 = 站上幾 %,負值 = 還差幾 %
+        info.append({"label": label, "d": r(dv), "m": r(mv), "days": dn, "months": mn,
+                     "dist": r((px / max(avail) - 1) * 100, 1) if avail else None,
+                     "ok": not bad if avail else None})
+        if bad:
+            over.append(label)
+    return info, over
 
 
 def _forward(c, h, e, n):
@@ -223,7 +283,8 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     burst_vol = max(v[s:min(n, e + 2)])
     post = v[e + 1:] if e < last else []
     post_vol = _avg_pos(post[-5:]) if post else None
-    lu_avg, day_avg, vol_reasons = volume_check(v, lu, s, e, last)
+    lu_avg, day_avg, base_med, vol_reasons = volume_check(v, lu, s, e, last)
+    ma_info, ma_over = ma_check(dates, o, h, l, c, v, last)
     vol_dry = post_vol is not None and burst_vol > 0 and post_vol <= burst_vol * 0.5
 
     # 基期:起漲前位於近一年區間的位置
@@ -250,6 +311,8 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         status = "early"
     if vol_reasons and status != "failed":
         status = "lowvol"
+    if ma_over and status not in ("failed", "lowvol"):
+        status = "overhead"
 
     # 籌碼:型態期間法人與融資
     period = dates[max(0, s - 1):]
@@ -334,10 +397,18 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     if vol_reasons:
         bd.append({"group": "量能門檻", "label": "未達標:" + "、".join(vol_reasons), "pts": 0, "max": 0})
     else:
-        bd.append({"group": "量能門檻", "label": f"通過:漲停日均量 {lu_avg:,.0f} 張、平日均量 {day_avg:,.0f} 張", "pts": 0, "max": 0})
+        bd.append({"group": "量能門檻", "label": f"通過:漲停日均量 {lu_avg:,.0f} 張、平日均量 {day_avg:,.0f} 張"
+                   + (f"、起漲前量中位數 {base_med:,.0f} 張" if base_med is not None else ""), "pts": 0, "max": 0})
+    ma_txt = "、".join(f"{m['label']} {m['dist']:+.1f}%" for m in ma_info if m["ok"] is not None)
+    if ma_over:
+        bd.append({"group": "大均線", "label": f"未站上{'、'.join(ma_over)}(上方有壓力):{ma_txt}", "pts": 0, "max": 0})
+    elif ma_txt:
+        bd.append({"group": "大均線", "label": f"通過:已站上季線/半年線/年線({ma_txt})", "pts": 0, "max": 0})
+    else:
+        bd.append({"group": "大均線", "label": "上市時間太短,大均線資料不足", "pts": 0, "max": 0})
     if status == "failed":  # 型態失敗:不論其他條件多好,都不應排在可操作名單前面
         sc = min(sc, 30)
-    if status == "lowvol":  # 量能不足:流動性差,不列入可操作名單
+    if status in ("lowvol", "overhead"):  # 量能不足 / 大均線壓力:不列入可操作名單
         sc = min(sc, 40)
     score = r(max(0, min(100, sc)), 0)
 
@@ -360,19 +431,33 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "breakout": f"整理後再創新高(第二波)。可沿 5 日線 {r(ma5)} 操作,跌破 10 日線 {r(ma10)} 減碼、跌破 {stop} 出場。",
         "failed": f"突破缺口已回補,型態失敗,不進場;持有者應停損出場。",
         "lowvol": "成交量未達門檻(" + "、".join(vol_reasons) + "),流動性不足、容易被少數人拉抬,不列入操作。",
+        "overhead": f"日線型態雖然成立,但股價還在{'、'.join(ma_over)}之下,屬於空頭格局裡的反彈,"
+                    f"上方套牢賣壓重、隨時可能拉回。等收盤站上{'、'.join(ma_over)}再重新評估。",
     }
     rr = None
-    if status not in ("failed", "running", "lowvol"):
+    if status not in ("failed", "running", "lowvol", "overhead"):
         ref = c[last]
         if ref > stop and t1 > ref:
             rr = r((t1 - ref) / (ref - stop), 2)
 
     # ---------- 本股歷史同型態回測(排除本次)
-    hist = [_forward(c, h, ee, n) for ss, ee in events if ee < s - 1 and not volume_check(v, lu, ss, ee, ee)[2]]
+    # 只統計當時也通過量能門檻與大均線檢查的型態,口徑才一致
+    hist = [_forward(c, h, ee, n) for ss, ee in events
+            if ee < s - 1 and not volume_check(v, lu, ss, ee, ee)[3] and not ma_check(dates, o, h, l, c, v, ee)[1]]
 
     k0 = max(0, n - CHART_BARS)
-    ma5s = [None if i < 4 else r(mean(c[i - 4:i + 1])) for i in range(k0, n)]
-    ma20s = [None if i < 19 else r(mean(c[i - 19:i + 1])) for i in range(k0, n)]
+
+    def mas(vals, k, start):
+        return [None if i < k - 1 else r(mean(vals[i - k + 1:i + 1])) for i in range(start, len(vals))]
+
+    def period_series(unit, ks):
+        ps = resample(dates, o, h, l, c, v, unit)
+        cl = [p["close"] for p in ps]
+        out = {"date": [p["date"] for p in ps], "open": [r(p["open"]) for p in ps], "high": [r(p["high"]) for p in ps],
+               "low": [r(p["low"]) for p in ps], "close": [r(x) for x in cl], "vol_lots": [r(p["vol"], 0) for p in ps]}
+        for k in ks:
+            out[f"ma{k}"] = mas(cl, k, 0)
+        return out
     return {
         "code": code, "name": name, "industry": extra.get("industry"),
         "kind": kind, "status": status,
@@ -389,7 +474,8 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "key_bot": r(k_bot), "key_top": r(k_top), "key_date": dates[k_i],
         "base_pos": r(base_pos, 0), "pre60": r(pre60, 1),
         "pre_vol": r(pre_vol, 0), "burst_vol": r(burst_vol, 0), "post_vol": r(post_vol, 0), "vol_dry": vol_dry,
-        "lu_vol": r(lu_avg, 0), "day_vol": r(day_avg, 0), "vol_reasons": vol_reasons,
+        "lu_vol": r(lu_avg, 0), "day_vol": r(day_avg, 0), "base_vol": r(base_med, 0), "vol_reasons": vol_reasons,
+        "mas": ma_info, "ma_over": ma_over,
         "vol": r(v[last], 0), "turnover": r(v[last] * c[last] / 1e5, 2),
         "foreign": f_sum, "trust": t_sum, "margin_chg": r(margin_chg, 1), "short_ratio": r(short_ratio, 1),
         "alert": alerts,
@@ -401,8 +487,11 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "history": hist,
         "series": {"date": dates[k0:], "open": [r(x) for x in o[k0:]], "high": [r(x) for x in h[k0:]],
                    "low": [r(x) for x in l[k0:]], "close": [r(x) for x in c[k0:]],
-                   "vol_lots": [r(x, 0) for x in v[k0:]], "ma5": ma5s, "ma20": ma20s,
+                   "vol_lots": [r(x, 0) for x in v[k0:]], "ma5": mas(c, 5, k0), "ma20": mas(c, 20, k0),
+                   "ma60": mas(c, 60, k0), "ma120": mas(c, 120, k0), "ma240": mas(c, 240, k0),
                    "lu": [bool(x) for x in lu[k0:]]},
+        "series_w": period_series("W", (13, 26, 52)),
+        "series_m": period_series("M", (3, 6, 12)),
     }
 
 
@@ -632,10 +721,10 @@ def ai_notes(rows: list[dict]) -> dict | None:
 STATUS_LABEL = {
     "running": "連板鎖單中", "early": "首根跳空漲停", "buyzone": "回測缺口・買點區",
     "consolidating": "強勢整理", "breakout": "整理後再創新高", "failed": "缺口回補・型態失敗",
-    "lowvol": "量能不足・剔除",
+    "lowvol": "量能不足・剔除", "overhead": "大均線壓力・剔除",
 }
-STATUS_ORDER = ["buyzone", "breakout", "consolidating", "running", "early", "lowvol", "failed"]
-EXCLUDED = ("failed", "lowvol")  # 不列入可操作名單
+STATUS_ORDER = ["buyzone", "breakout", "consolidating", "running", "early", "overhead", "lowvol", "failed"]
+EXCLUDED = ("failed", "lowvol", "overhead")  # 不列入可操作名單
 
 
 def build_zone(ctx, names, idx_bars):
@@ -692,7 +781,8 @@ def build_zone(ctx, names, idx_bars):
         "status_label": STATUS_LABEL,
         "status_order": STATUS_ORDER,
         "excluded": list(EXCLUDED),
-        "vol_rule": {"lu": MIN_LU_VOL, "day": MIN_DAY_VOL},
+        "vol_rule": {"lu": MIN_LU_VOL, "day": MIN_DAY_VOL, "base": MIN_BASE_VOL},
+        "ma_rule": [{"label": lb, "days": dn, "months": mn} for dn, mn, lb in BIG_MAS],
         "pooled": _hist_stats(pooled),
         "scanned": len(sz.get("candidates") or []),
         "ai": False,

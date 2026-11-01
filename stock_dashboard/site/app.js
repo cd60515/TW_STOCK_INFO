@@ -72,7 +72,8 @@
       const s = ch.addAreaSeries({ lineColor: css("--accent"), topColor: css("--accent-soft"), bottomColor: "transparent", lineWidth: 2, priceLineVisible: false });
       s.setData(toLine(S, "close"));
     }
-    const maColors = { 5: "#e8a33d", 10: "#9b6dd6", 20: "#3f86e0", 60: "#d6609b", 120: "#5aa69a", 240: "#8a8f99" };
+    const maColors = { 5: "#e8a33d", 10: "#9b6dd6", 20: "#3f86e0", 60: "#d6609b", 120: "#5aa69a", 240: "#8a8f99",
+      3: "#d6609b", 6: "#5aa69a", 12: "#8a8f99", 13: "#d6609b", 26: "#5aa69a", 52: "#8a8f99" };
     mas.forEach((n) => {
       const l = ch.addLineSeries({ color: maColors[n], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
       l.setData(toLine(S, "ma" + n));
@@ -443,7 +444,14 @@
   }
 
   // ---------------------------------------------------------------- 飆股專區
-  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", lowvol: "neutral", failed: "bear" };
+  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", lowvol: "neutral", overhead: "neutral", failed: "bear" };
+  // 飆股 K 線週期:日 K 看缺口與買點,週 K / 月 K 看上方有沒有大均線壓力
+  const SURGE_K = {
+    D: { name: "日K", key: "series", mas: [[5, "MA5"], [20, "月線"], [60, "季線"], [120, "半年線"], [240, "年線"]], show: 120 },
+    W: { name: "週K", key: "series_w", mas: [[13, "13週≈季線"], [26, "26週≈半年線"], [52, "52週≈年線"]], show: 80 },
+    M: { name: "月K", key: "series_m", mas: [[3, "3月=季線"], [6, "6月=半年線"], [12, "12月=年線"]], show: 30 },
+  };
+  let surgeK = store.get("surgeK", "D");
   let surgeTab = store.get("surgeTab", "all");
   let surgeSel = null;
 
@@ -460,6 +468,9 @@
     const ok = (x) => !EX.includes(x.status);
     const rows = Z.rows.filter((x) => surgeTab === "all" ? ok(x) : x.status === surgeTab);
     const volCell = (v, min) => v == null ? "—" : `<span class="${v < min ? "vol-bad" : ""}">${int(v)}</span>`;
+    const maCell = (x) => !x.mas || x.mas.every((m) => m.ok == null) ? "—"
+      : x.ma_over && x.ma_over.length ? `<span class="vol-bad">${x.mas.filter((m) => m.ok === false).map((m) => esc(m.label) + " " + pct(m.dist, 1).replace(/<[^>]+>/g, "")).join("<br>")}</span>`
+      : '<span class="up">全部站上</span>';
     if (!surgeSel || !Z.rows.find((x) => x.code === surgeSel)) surgeSel = (rows[0] || Z.rows[0] || {}).code;
     const tabs = [["all", "可操作名單", Z.rows.filter(ok).length]].concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
     $app.innerHTML = `
@@ -490,13 +501,13 @@
       </section>
     </div>` : ""}
     <section class="panel">
-      <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)・量能門檻:漲停日均量 ≥ ${int(VR.lu)} 張、平日均量 ≥ ${int(VR.day)} 張</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
+      <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)・量能門檻:漲停日均量 ≥ ${int(VR.lu)} 張、平日均量 ≥ ${int(VR.day)} 張${VR.base ? `、起漲前量中位數 ≥ ${int(VR.base)} 張` : ""}${Z.ma_rule ? "・須站上季線/半年線/年線" : ""}</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
       <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-st="${k}" class="${surgeTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
-      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
+      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th title="收盤是否站上季線/半年線/年線(日線與月K均線都要);紅字 = 還差幾 %">大均線</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
       ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
         <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}</td>
         <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td>
-        <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${volCell(x.lu_vol, VR.lu)}</td><td>${volCell(x.day_vol, VR.day)}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
+        <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${volCell(x.lu_vol, VR.lu)}</td><td>${volCell(x.day_vol, VR.day)}</td><td>${maCell(x)}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
         <td>${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)}</td><td>${signed((x.foreign ?? 0) + (x.trust ?? 0))}</td>
         <td class="txt">${x.ai ? esc(x.ai.theme) : esc((x.themes || []).join("、") || "—")}</td></tr>`).join("")}
       </tbody></table></div>` : '<p class="empty">目前沒有符合這個狀態的股票</p>'}
@@ -510,7 +521,8 @@
         <li class="bull"><span><b>缺口是生命線</b>:回測缺口不補 = 型態成立;缺口被完全回補 = 型態失敗,立刻出場。</span></li>
         <li class="bull"><span><b>買點</b>:不追連板,等「開板後量縮、回測缺口不破」或「整理後帶量再創新高」。</span></li>
         <li class="bull"><span><b>低基期優先</b>:起漲前位於一年區間低檔的續航力較好;高檔連板容易是末升段。</span></li>
-        <li class="bear"><span><b>量能門檻</b>:漲停日平均量至少 ${int((D.surge.vol_rule || {}).lu)} 張、平日(非漲停日)平均量至少 ${int((D.surge.vol_rule || {}).day)} 張;量太小的股票進出困難、容易被少數人拉抬,直接剔除。</span></li>
+        <li class="bear"><span><b>大均線壓力</b>:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線,以及月 K 的 3/6/12 月均線)。日線再漂亮,月線圖上方壓著大均線 = 空頭格局裡的反彈,套牢賣壓重、隨時拉回,直接剔除。</span></li>
+        <li class="bear"><span><b>量能門檻</b>:漲停日平均量至少 ${int(VR.lu)} 張、平日(非漲停日)平均量至少 ${int(VR.day)} 張${VR.base ? `,起漲前 60 日成交量中位數至少 ${int(VR.base)} 張(平常沒人交易、只有漲停才爆量的冷門股)` : ""};量太小的股票進出困難、容易被少數人拉抬,直接剔除。</span></li>
         <li class="bear"><span><b>融資暴增要小心</b>:連板期間融資大增 = 散戶追價,後續容易震盪。</span></li>
         <li class="info"><span><b>看大盤溫度</b>:市場越恐慌,能逆勢鎖漲停的股票越珍貴;極度貪婪時降低部位。</span></li>
         <li class="info"><span><b>注意/處置股</b>:連續漲停常被列入,處置期間分盤撮合、流動性變差,部位要更小。</span></li>
@@ -552,8 +564,12 @@
         <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
       </div>
       ${x.ai ? `<p class="view ai-note" style="margin-top:12px">${chip(x.ai.quality || "AI", x.ai.quality === "實質題材" ? "bull" : x.ai.quality === "概念炒作" ? "warn" : "neutral")} <b>${esc(x.ai.theme)}</b> — ${esc(x.ai.note)}</p>` : ""}
-      <div class="legend" style="margin-top:10px"><span><i style="background:#e8a33d"></i>MA5</span><span><i style="background:#3f86e0"></i>MA20</span><span><i style="background:var(--up)"></i>缺口區(上緣/下緣)</span><span><i style="background:var(--down)"></i>停損</span><span><i style="background:var(--muted)"></i>起漲價</span><span>▲ 漲停</span><span>下方柱狀 = 成交量(張)</span></div>
-      <div id="surgeChart" class="chart-box" style="height:340px"></div>
+      <div class="row" style="margin-top:10px;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div class="seg" id="surgeK">${Object.entries(SURGE_K).map(([k, v]) => x[v.key] ? `<button type="button" data-k="${k}" class="${surgeK === k ? "on" : ""}">${v.name}</button>` : "").join("")}</div>
+        ${x.mas ? `<div class="row" style="gap:6px;flex-wrap:wrap">${x.mas.map((m) => m.ok == null ? "" : chip(`${m.label} ${m.dist > 0 ? "+" : ""}${fmt(m.dist, 1)}%`, m.ok ? "bull" : "bear")).join("")}</div>` : ""}
+      </div>
+      <div class="legend" id="surgeLegend" style="margin-top:8px"></div>
+      <div id="surgeChart" class="chart-box" style="height:380px"></div>
       <div class="grid g2" style="margin-top:12px">
         <div class="plan">
           <div class="ph"><span>操作計畫</span>${p.rr != null ? `<small>風險報酬比 1 : ${fmt(p.rr, 2)}</small>` : ""}</div>
@@ -573,7 +589,8 @@
             <div><span class="label">基期位置(一年)</span><b>${x.base_pos == null ? "—" : fmt(x.base_pos, 0) + "%"}</b></div>
             <div><span class="label">起漲前 60 日</span><b>${pct(x.pre60, 1)}</b></div>
             <div><span class="label">漲停日均量 / 平日均量(張)</span><b style="font-size:13px"><span class="${x.lu_vol < D.surge.vol_rule.lu ? "vol-bad" : ""}">${int(x.lu_vol)}</span> / <span class="${x.day_vol < D.surge.vol_rule.day ? "vol-bad" : ""}">${int(x.day_vol)}</span></b></div>
-            <div><span class="label">今日成交量</span><b style="font-size:13px">${int(x.vol)} 張</b></div>
+            <div><span class="label">今日成交量 / 起漲前量中位數</span><b style="font-size:13px">${int(x.vol)} / <span class="${x.base_vol != null && x.base_vol < (D.surge.vol_rule.base || 0) ? "vol-bad" : ""}">${x.base_vol == null ? "—" : int(x.base_vol)}</span> 張</b></div>
+            ${x.mas ? x.mas.filter((m) => m.ok != null).map((m) => `<div><span class="label">${esc(m.label)}(日 ${m.days} / 月 ${m.months})</span><b style="font-size:13px" class="${m.ok ? "" : "vol-bad"}">${m.d == null ? "—" : fmt(m.d)} / ${m.m == null ? "—" : fmt(m.m)}</b></div>`).join("") : ""}
             <div style="grid-column:span 2"><span class="label">量能(張):起漲前 → 爆量 → 近 5 日</span><b style="font-size:13px">${int(x.pre_vol)}→${int(x.burst_vol)}→${int(x.post_vol)}</b></div>
             <div><span class="label">外資 / 投信(張)</span><b style="font-size:13px">${signed(x.foreign)} / ${signed(x.trust)}</b></div>
             <div><span class="label">融資變化 / 券資比</span><b style="font-size:13px">${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)} / ${x.short_ratio == null ? "—" : fmt(x.short_ratio, 0) + "%"}</b></div>
@@ -587,13 +604,26 @@
       </div>
       <h2 style="font-size:15px;margin:16px 0 4px">近期新聞 ${x.themes && x.themes.length ? `<small class="muted" style="font-weight:400">題材關鍵字:${esc(x.themes.join("、"))}</small>` : ""}</h2>${newsList(x.news)}
       <p style="margin:8px 0 0;font-size:13px"><a href="${quoteUrl(x.code)}" target="_blank" rel="noopener">在 Yahoo 股市查看即時報價 →</a></p>`;
-    surgeChart(document.getElementById("surgeChart"), x);
+    const draw = () => {
+      destroyCharts();
+      const k = x[(SURGE_K[surgeK] || {}).key] ? surgeK : "D";
+      el.querySelectorAll("[data-k]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-k") === k));
+      surgeChart(document.getElementById("surgeChart"), x, k);
+    };
+    el.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { surgeK = b.getAttribute("data-k"); store.set("surgeK", surgeK); draw(); }));
+    draw();
     if (scroll) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function surgeChart(el, x) {
-    const S = x.series;
-    const ch = priceChart(el, S, { mas: [5, 20] });
+  function surgeChart(el, x, k = "D") {
+    const K = SURGE_K[k], S = x[K.key];
+    const maColor = { 5: "#e8a33d", 20: "#3f86e0", 60: "#d6609b", 120: "#5aa69a", 240: "#8a8f99", 3: "#d6609b", 6: "#5aa69a", 12: "#8a8f99", 13: "#d6609b", 26: "#5aa69a", 52: "#8a8f99" };
+    const mas = K.mas.filter(([n]) => S["ma" + n]);
+    const lg = document.getElementById("surgeLegend");
+    if (lg) lg.innerHTML = mas.map(([n, l]) => `<span><i style="background:${maColor[n]}"></i>${esc(l)}</span>`).join("")
+      + '<span><i style="background:var(--up)"></i>缺口區</span><span><i style="background:var(--down)"></i>停損</span><span><i style="background:var(--muted)"></i>起漲價</span>'
+      + (k === "D" ? "<span>▲ 漲停</span>" : "") + "<span>下方柱狀 = 成交量(張)</span>";
+    const ch = priceChart(el, S, { mas: mas.map(([n]) => n) });
     if (!ch) return;
     const LC = window.LightweightCharts;
     const anchor = ch.addLineSeries({ color: "transparent", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
@@ -603,9 +633,9 @@
     line(x.key_bot, css("--up"), "缺口下緣");
     line(x.plan.stop, css("--down"), "停損", 0);
     line(x.base, css("--muted"), "起漲");
-    if (LC) anchor.setMarkers(S.date.map((t, i) => S.lu[i] ? { time: t, position: "aboveBar", color: css("--up"), shape: "arrowUp", text: "" } : null).filter(Boolean));
+    if (LC && S.lu) anchor.setMarkers(S.date.map((t, i) => S.lu[i] ? { time: t, position: "aboveBar", color: css("--up"), shape: "arrowUp", text: "" } : null).filter(Boolean));
     const n = S.date.length;
-    ch.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - 70), to: n + 2 });
+    ch.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - K.show), to: n + 2 });
   }
 
   function knownPrice(code) {
