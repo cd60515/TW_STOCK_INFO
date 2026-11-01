@@ -185,11 +185,23 @@ def resample(dates, o, h, l, c, v, unit):
     return out
 
 
-def ma_check(dates, o, h, l, c, v, end):
+def month_bars(dates, o, h, l, c, v, end, mlong=None):
+    """月 K:日線涵蓋的月份用日線重組(含當月最新價),更早的月份接 Yahoo 十年月線。"""
+    months = resample(dates[:end + 1], o, h, l, c, v, "M")
+    if mlong:
+        first = dates[0][:7]
+        old = [{"key": m["date"][:7], "date": m["date"], "open": m["open"], "high": m["high"], "low": m["low"],
+                "close": m["close"], "vol": (m.get("volume") or 0) / 1000, "end": -1}
+               for m in mlong if m["date"][:7] < first]
+        months = old + months
+    return months
+
+
+def ma_check(dates, o, h, l, c, v, end, mlong=None):
     """大均線檢查:在 end 這天,收盤是否站上季線/半年線/年線(日線與月 K 都要)。
     回傳 (各均線明細, 壓在上方的均線名稱)。資料不足的均線略過不判斷。"""
     px = c[end]
-    months = resample(dates[:end + 1], o, h, l, c, v, "M")
+    months = month_bars(dates, o, h, l, c, v, end, mlong)
     mc = [m["close"] for m in months]
     info, over = [], []
     for dn, mn, label in BIG_MAS:
@@ -284,7 +296,12 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     post = v[e + 1:] if e < last else []
     post_vol = _avg_pos(post[-5:]) if post else None
     lu_avg, day_avg, base_med, vol_reasons = volume_check(v, lu, s, e, last)
-    ma_info, ma_over = ma_check(dates, o, h, l, c, v, last)
+    mlong = extra.get("monthly")
+    ma_info, ma_over = ma_check(dates, o, h, l, c, v, last, mlong)
+    _mc = [m["close"] for m in month_bars(dates, o, h, l, c, v, last, mlong)]
+    ma_diag = {f"m{k}": r((c[last] / mean(_mc[-k:]) - 1) * 100, 1) for k in (5, 10, 20, 24, 36, 60) if len(_mc) >= k}
+    ma_diag["months"] = len(_mc)
+    ma_diag["hi_all"] = r((c[last] / max(_mc) - 1) * 100, 1)
     vol_dry = post_vol is not None and burst_vol > 0 and post_vol <= burst_vol * 0.5
 
     # 基期:起漲前位於近一年區間的位置
@@ -443,7 +460,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     # ---------- 本股歷史同型態回測(排除本次)
     # 只統計當時也通過量能門檻與大均線檢查的型態,口徑才一致
     hist = [_forward(c, h, ee, n) for ss, ee in events
-            if ee < s - 1 and not volume_check(v, lu, ss, ee, ee)[3] and not ma_check(dates, o, h, l, c, v, ee)[1]]
+            if ee < s - 1 and not volume_check(v, lu, ss, ee, ee)[3] and not ma_check(dates, o, h, l, c, v, ee, mlong)[1]]
 
     k0 = max(0, n - CHART_BARS)
 
@@ -451,7 +468,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         return [None if i < k - 1 else r(mean(vals[i - k + 1:i + 1])) for i in range(start, len(vals))]
 
     def period_series(unit, ks):
-        ps = resample(dates, o, h, l, c, v, unit)
+        ps = month_bars(dates, o, h, l, c, v, n - 1, mlong) if unit == "M" else resample(dates, o, h, l, c, v, unit)
         cl = [p["close"] for p in ps]
         out = {"date": [p["date"] for p in ps], "open": [r(p["open"]) for p in ps], "high": [r(p["high"]) for p in ps],
                "low": [r(p["low"]) for p in ps], "close": [r(x) for x in cl], "vol_lots": [r(p["vol"], 0) for p in ps]}
@@ -475,7 +492,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "base_pos": r(base_pos, 0), "pre60": r(pre60, 1),
         "pre_vol": r(pre_vol, 0), "burst_vol": r(burst_vol, 0), "post_vol": r(post_vol, 0), "vol_dry": vol_dry,
         "lu_vol": r(lu_avg, 0), "day_vol": r(day_avg, 0), "base_vol": r(base_med, 0), "vol_reasons": vol_reasons,
-        "mas": ma_info, "ma_over": ma_over,
+        "mas": ma_info, "ma_over": ma_over, "ma_diag": ma_diag,
         "vol": r(v[last], 0), "turnover": r(v[last] * c[last] / 1e5, 2),
         "foreign": f_sum, "trust": t_sum, "margin_chg": r(margin_chg, 1), "short_ratio": r(short_ratio, 1),
         "alert": alerts,
@@ -748,7 +765,8 @@ def build_zone(ctx, names, idx_bars):
         cbd = {d: {"t86": x["t86_all"].get(code), "margin": x["margin_all"].get(code)} for d, x in chips_by_date.items()}
         try:
             a = analyze(code, bars, names.get(code, code), cbd,
-                        {"industry": ctx["industries"].get(code), "alerts": sz.get("alerts") or {}})
+                        {"industry": ctx["industries"].get(code), "alerts": sz.get("alerts") or {},
+                         "monthly": (sz.get("monthly") or {}).get(code)})
         except Exception as e:  # 單檔異常不影響整體
             print(f"[warn] 飆股分析 {code} 失敗: {e!r}")
             a = None

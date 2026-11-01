@@ -129,10 +129,10 @@ def _field_index(fields, *keywords, exact=None):
 
 # ---------------------------------------------------------------- 個股/大盤日線
 
-def yahoo_chart(http: Http, symbol: str, range_="2y"):
+def yahoo_chart(http: Http, symbol: str, range_="2y", interval="1d"):
     """Yahoo Finance 日線。symbol 例:2330.TW、6488.TWO、^TWII。回傳 list[dict] 依日期排序。"""
     url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}"
-           f"?range={range_}&interval=1d&includePrePost=false")
+           f"?range={range_}&interval={interval}&includePrePost=false")
     data = http.json(url)
     try:
         res = data["chart"]["result"][0]
