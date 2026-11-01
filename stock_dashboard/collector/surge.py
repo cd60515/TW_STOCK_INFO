@@ -8,8 +8,9 @@
   3. 最好的買點通常不是連板當下,而是「開板後量縮整理、回測缺口不破」或「整理後再創新高」。
   4. 低基期起漲(起漲前位於一年區間的低檔)續航力較好;高檔連板容易是末升段。
   5. 融資在連板期間暴增 = 散戶追價,後續籌碼凌亂;法人同步買超較健康。
-  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線,
-     以及月 K 的 3/6/12 月均線)。日線再漂亮,上方壓著大均線就只是空頭格局裡的反彈,剔除。
+  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線與月 K 3/6/12 月均線),
+     以及月 K 的長期大均線 20 月線、60 月線(五年線,用 Yahoo 十年月線計算)。
+     日線再漂亮,月線圖上方壓著大均線就只是空頭格局裡的反彈,套牢賣壓重,剔除。
   7. 量能門檻:漲停日均量、平日均量,以及「起漲前 60 日的成交量中位數」都要達標;
      平常沒人交易、只有漲停那幾天爆量的冷門股,進出困難,剔除。
   8. 大盤環境:市場越恐慌,強勢股越容易成為資金避風港(逆勢抗跌);
@@ -38,8 +39,9 @@ MODEL = "claude-opus-5-5"
 MIN_LU_VOL = 1000     # 漲停日平均成交量
 MIN_DAY_VOL = 800     # 近 20 日「非漲停日」平均成交量
 MIN_BASE_VOL = 300    # 起漲前 60 日的成交量中位數(平常就要有人交易,不是只有漲停那幾天爆量)
-# 大均線:(日線天數, 月 K 月數, 名稱)。收盤必須站上全部,否則上方有大均線壓力
-BIG_MAS = ((60, 3, "季線"), (120, 6, "半年線"), (240, 12, "年線"))
+# 大均線:(日線天數, 月 K 月數, 名稱)。收盤必須站上全部,否則上方有大均線壓力。
+# 20 月線、60 月線只看月 K(日線天數為 None)。上市未滿 N 個月的股票,該條均線略過不判斷。
+BIG_MAS = ((60, 3, "季線"), (120, 6, "半年線"), (240, 12, "年線"), (None, 20, "20月線"), (None, 60, "60月線"))
 
 
 # ---------------------------------------------------------------- 漲停價計算
@@ -205,7 +207,7 @@ def ma_check(dates, o, h, l, c, v, end, mlong=None):
     mc = [m["close"] for m in months]
     info, over = [], []
     for dn, mn, label in BIG_MAS:
-        dv = mean(c[end - dn + 1:end + 1]) if end + 1 >= dn else None
+        dv = mean(c[end - dn + 1:end + 1]) if dn and end + 1 >= dn else None
         mv = mean(mc[-mn:]) if len(mc) >= mn else None
         avail = [x for x in (dv, mv) if x is not None]
         bad = [x for x in avail if px < x]
@@ -298,10 +300,6 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     lu_avg, day_avg, base_med, vol_reasons = volume_check(v, lu, s, e, last)
     mlong = extra.get("monthly")
     ma_info, ma_over = ma_check(dates, o, h, l, c, v, last, mlong)
-    _mc = [m["close"] for m in month_bars(dates, o, h, l, c, v, last, mlong)]
-    ma_diag = {f"m{k}": r((c[last] / mean(_mc[-k:]) - 1) * 100, 1) for k in (5, 10, 20, 24, 36, 60) if len(_mc) >= k}
-    ma_diag["months"] = len(_mc)
-    ma_diag["hi_all"] = r((c[last] / max(_mc) - 1) * 100, 1)
     vol_dry = post_vol is not None and burst_vol > 0 and post_vol <= burst_vol * 0.5
 
     # 基期:起漲前位於近一年區間的位置
@@ -420,7 +418,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     if ma_over:
         bd.append({"group": "大均線", "label": f"未站上{'、'.join(ma_over)}(上方有壓力):{ma_txt}", "pts": 0, "max": 0})
     elif ma_txt:
-        bd.append({"group": "大均線", "label": f"通過:已站上季線/半年線/年線({ma_txt})", "pts": 0, "max": 0})
+        bd.append({"group": "大均線", "label": f"通過:已站上所有大均線({ma_txt})", "pts": 0, "max": 0})
     else:
         bd.append({"group": "大均線", "label": "上市時間太短,大均線資料不足", "pts": 0, "max": 0})
     if status == "failed":  # 型態失敗:不論其他條件多好,都不應排在可操作名單前面
@@ -492,7 +490,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "base_pos": r(base_pos, 0), "pre60": r(pre60, 1),
         "pre_vol": r(pre_vol, 0), "burst_vol": r(burst_vol, 0), "post_vol": r(post_vol, 0), "vol_dry": vol_dry,
         "lu_vol": r(lu_avg, 0), "day_vol": r(day_avg, 0), "base_vol": r(base_med, 0), "vol_reasons": vol_reasons,
-        "mas": ma_info, "ma_over": ma_over, "ma_diag": ma_diag,
+        "mas": ma_info, "ma_over": ma_over,
         "vol": r(v[last], 0), "turnover": r(v[last] * c[last] / 1e5, 2),
         "foreign": f_sum, "trust": t_sum, "margin_chg": r(margin_chg, 1), "short_ratio": r(short_ratio, 1),
         "alert": alerts,
@@ -508,7 +506,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
                    "ma60": mas(c, 60, k0), "ma120": mas(c, 120, k0), "ma240": mas(c, 240, k0),
                    "lu": [bool(x) for x in lu[k0:]]},
         "series_w": period_series("W", (13, 26, 52)),
-        "series_m": period_series("M", (3, 6, 12)),
+        "series_m": period_series("M", (3, 6, 12, 20, 60)),
     }
 
 
