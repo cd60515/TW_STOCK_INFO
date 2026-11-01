@@ -180,12 +180,19 @@ def collect_live(root: Path, watchlist: list[dict]):
         }
         if val:
             _save(state / "extra.json", extra)
-    # 休市日曆一年才變一次:有了就不重抓,沒有(或上次失敗)才單獨補抓
-    if not extra.get("holidays"):
+    # 休市日曆一年才變一次:已有今年的日期就不重抓;跨年(或上次失敗)才補抓。
+    # 與舊清單合併並保留去年,跨年初計算資料是否過期時才不會把去年底的休市日算成落後。
+    old_hol = extra.get("holidays") or []
+    if not any(h.startswith(f"{now.year}-") for h in old_hol):
         hol = S.holidays(http)
         if hol:
-            extra["holidays"] = hol
-            _save(state / "extra.json", extra)
+            keep = (f"{now.year - 1}-", f"{now.year}-")
+            merged = sorted({h for h in old_hol + hol if h.startswith(keep)})
+            if merged != old_hol:
+                extra["holidays"] = merged
+                _save(state / "extra.json", extra)
+            if not any(h.startswith(f"{now.year}-") for h in merged):
+                S.log(f"[info] 證交所尚未公布 {now.year} 年休市日曆,下次執行再試")
 
     prices = {}
     for s in watchlist:
