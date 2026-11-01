@@ -490,7 +490,7 @@
       <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
       <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-st="${k}" class="${surgeTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
       ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
-      ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "bear2" : "warn")}` : ""}</td>
+      ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
         <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}</td>
         <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td>
         <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
@@ -542,7 +542,7 @@
     el.innerHTML = `
       <div class="stock-head">
         <div><div class="stock-title">${esc(x.name)}<span class="cd">${esc(x.code)}${x.industry ? " ・ " + esc(x.industry) : ""}</span></div>
-          <div class="row" style="margin-top:6px">${chip(L[x.status], SURGE_CHIP[x.status])}${x.alert ? chip(x.alert + "股", x.alert === "處置" ? "bear2" : "warn") : ""}
+          <div class="row" style="margin-top:6px">${chip(L[x.status], SURGE_CHIP[x.status])}${x.alert ? chip(x.alert + "股", x.alert === "處置" ? "alert" : "warn") : ""}
             <span class="muted">續航分 <b class="num" style="color:var(--ink)">${fmt(x.score, 0)}</b> / 100</span>
             <span class="muted">起漲 ${esc(x.start)} ・ 型態結束 ${esc(x.end)}${x.days_since ? `(${x.days_since} 個交易日前)` : "(今天)"}</span></div></div>
         <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>

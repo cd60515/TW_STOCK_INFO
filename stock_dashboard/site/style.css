@@ -95,6 +95,7 @@ main.wrap { padding-block: 18px 32px; display: grid; gap: 16px; }
 .chip.bear2 { background: var(--down); color: #fff; }
 .chip.ai { background: var(--accent-soft); color: var(--accent); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.alert { background: var(--alert); color: var(--on-alert); }
 
 .sig { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .sig li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; align-items: start; font-size: 13.5px; }
@@ -184,7 +185,7 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin: 6px 0; font-family: var(--font-num); }
 .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
 
-.plan { display: grid; gap: 10px; }
+.plan { display: grid; gap: 10px; align-content: start; }
 .plan .levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .plan .lv { border-radius: 8px; padding: 8px 10px; background: var(--soft); }
 .plan .lv.stop { background: var(--down-soft); }
