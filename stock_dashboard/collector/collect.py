@@ -224,10 +224,15 @@ def collect_live(root: Path, watchlist: list[dict]):
     # 飆股專區:先用全市場快照找出近期漲停股,再抓完整日線做精確型態判斷
     cands = SG.find_candidates(daily)
     surge_bars, surge_news = {}, {}
+    surge_monthly = {}
     for c in cands:
         b = S.yahoo_chart(http, c + ".TW")
         if b:
             surge_bars[c] = b
+        # 月 K 抓十年,才算得出 20/60 個月的長期大均線(兩年日線不夠)
+        m = S.yahoo_chart(http, c + ".TW", range_="10y", interval="1mo")
+        if m:
+            surge_monthly[c] = m
     for c in cands[:40]:
         surge_news[c] = S.google_news(http, f"{names.get(c, c)} {c} when:14d", limit=8)
     vix = S.yahoo_chart(http, "^VIX", range_="1y")
@@ -252,6 +257,6 @@ def collect_live(root: Path, watchlist: list[dict]):
         "names": names,
         "news": news,
         "market_news": market_news,
-        "surge": {"candidates": cands, "bars": surge_bars, "news": surge_news, "vix": vix, "alerts": alerts},
+        "surge": {"candidates": cands, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "alerts": alerts},
         "data_complete": "margin" in latest_idx and "t86" in latest_idx,
     }

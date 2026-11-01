@@ -65,9 +65,10 @@ def collect_demo(watchlist):
         "6101": ("示範飆股甲", 6, 3, "hold"), "6102": ("示範飆股乙", 0, 2, "run"),
         "6103": ("示範飆股丙", 0, 1, "run"), "6104": ("示範飆股丁", 9, 3, "fail"),
         "6105": ("示範飆股戊", 11, 4, "breakout"), "6106": ("示範飆股己", 4, 4, "hold"),
+        "6107": ("示範飆股庚", 5, 2, "hold"),  # 長期空頭裡的反彈:上方壓著年線 → 大均線壓力
     }
     for code, (nm, ago, nlu, after) in plants.items():
-        w = _walk(rng, 300, rng.uniform(20, 120), 0.0002, 0.012)
+        w = _walk(rng, 300, rng.uniform(20, 120), -0.003 if code == "6107" else 0.0002, 0.012)
         for b, d in zip(w, dates[-300:]):
             b["date"] = d
         if code in ("6101", "6106"):
