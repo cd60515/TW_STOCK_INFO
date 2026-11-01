@@ -27,9 +27,12 @@ from statistics import mean
 from .analysis import r
 
 LOOKBACK = 20         # 型態必須在最近 20 個交易日內發生
-MAX_CANDIDATES = 40   # 網站最多顯示幾檔(依續航分排序)
+MAX_CANDIDATES = 60   # 網站最多顯示幾檔(依續航分排序)
 CHART_BARS = 90       # 每檔附的 K 線根數
 MODEL = "claude-opus-5-5"
+# 量能門檻(張):成交量太小的股票進出困難、容易被少數人拉抬,直接剔除
+MIN_LU_VOL = 1000     # 漲停日平均成交量
+MIN_DAY_VOL = 800     # 近 20 日「非漲停日」平均成交量
 
 
 # ---------------------------------------------------------------- 漲停價計算
@@ -125,6 +128,24 @@ def _pattern_events(o, h, l, c, lu, gap):
     return [(s, e) for s, e in _runs(lu) if e - s + 1 >= 2 and any(gap[s:e + 1])]
 
 
+def _avg_pos(vals):
+    """平均量:成交量 0 多半是資料源尚未更新的 K 棒,不列入計算。"""
+    vals = [x for x in vals if x > 0]
+    return mean(vals) if vals else None
+
+
+def volume_check(v, lu, s, e, end):
+    """量能門檻:漲停日平均量 ≥ MIN_LU_VOL,且 end 往前 20 日的非漲停日平均量 ≥ MIN_DAY_VOL。"""
+    lu_avg = _avg_pos([v[i] for i in range(s, e + 1) if lu[i]])
+    day_avg = _avg_pos([v[i] for i in range(max(0, end - 19), end + 1) if not lu[i]])
+    reasons = []
+    if lu_avg is None or lu_avg < MIN_LU_VOL:
+        reasons.append(f"漲停日均量 {0 if lu_avg is None else lu_avg:,.0f} 張 < {MIN_LU_VOL:,}")
+    if day_avg is None or day_avg < MIN_DAY_VOL:
+        reasons.append(f"平日均量 {0 if day_avg is None else day_avg:,.0f} 張 < {MIN_DAY_VOL:,}")
+    return lu_avg, day_avg, reasons
+
+
 def _forward(c, h, e, n):
     """型態結束日收盤進場,之後 5/10/20 日報酬與 20 日內最大漲幅。"""
     res = {}
@@ -198,10 +219,11 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     k_i, k_bot, k_top = (tested or open_gaps or gaps)[-1]
 
     # 量能:開板後是否量縮整理
-    pre_vol = mean(v[max(0, s - 20):s]) if s >= 5 else None
+    pre_vol = _avg_pos(v[max(0, s - 20):s]) if s >= 5 else None
     burst_vol = max(v[s:min(n, e + 2)])
     post = v[e + 1:] if e < last else []
-    post_vol = mean(post[-5:]) if post else None
+    post_vol = _avg_pos(post[-5:]) if post else None
+    lu_avg, day_avg, vol_reasons = volume_check(v, lu, s, e, last)
     vol_dry = post_vol is not None and burst_vol > 0 and post_vol <= burst_vol * 0.5
 
     # 基期:起漲前位於近一年區間的位置
@@ -226,6 +248,8 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         status = "consolidating"
     if kind == "early" and status != "failed":
         status = "early"
+    if vol_reasons and status != "failed":
+        status = "lowvol"
 
     # 籌碼:型態期間法人與融資
     period = dates[max(0, s - 1):]
@@ -307,8 +331,14 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     elif alerts == "注意":
         sc -= 3
         bd.append({"group": "風險", "label": "已列注意股,再漲可能被處置", "pts": -3, "max": 0})
+    if vol_reasons:
+        bd.append({"group": "量能門檻", "label": "未達標:" + "、".join(vol_reasons), "pts": 0, "max": 0})
+    else:
+        bd.append({"group": "量能門檻", "label": f"通過:漲停日均量 {lu_avg:,.0f} 張、平日均量 {day_avg:,.0f} 張", "pts": 0, "max": 0})
     if status == "failed":  # 型態失敗:不論其他條件多好,都不應排在可操作名單前面
         sc = min(sc, 30)
+    if status == "lowvol":  # 量能不足:流動性差,不列入可操作名單
+        sc = min(sc, 40)
     score = r(max(0, min(100, sc)), 0)
 
     # ---------- 交易計畫
@@ -329,15 +359,16 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "consolidating": f"強勢整理中,距缺口仍有距離。等拉回 {entry_lo}~{entry_hi} 或帶量突破 {r(peak)} 再進場。",
         "breakout": f"整理後再創新高(第二波)。可沿 5 日線 {r(ma5)} 操作,跌破 10 日線 {r(ma10)} 減碼、跌破 {stop} 出場。",
         "failed": f"突破缺口已回補,型態失敗,不進場;持有者應停損出場。",
+        "lowvol": "成交量未達門檻(" + "、".join(vol_reasons) + "),流動性不足、容易被少數人拉抬,不列入操作。",
     }
     rr = None
-    if status not in ("failed", "running"):
+    if status not in ("failed", "running", "lowvol"):
         ref = c[last]
         if ref > stop and t1 > ref:
             rr = r((t1 - ref) / (ref - stop), 2)
 
     # ---------- 本股歷史同型態回測(排除本次)
-    hist = [_forward(c, h, ee, n) for ss, ee in events if ee < s - 1]
+    hist = [_forward(c, h, ee, n) for ss, ee in events if ee < s - 1 and not volume_check(v, lu, ss, ee, ee)[2]]
 
     k0 = max(0, n - CHART_BARS)
     ma5s = [None if i < 4 else r(mean(c[i - 4:i + 1])) for i in range(k0, n)]
@@ -358,6 +389,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "key_bot": r(k_bot), "key_top": r(k_top), "key_date": dates[k_i],
         "base_pos": r(base_pos, 0), "pre60": r(pre60, 1),
         "pre_vol": r(pre_vol, 0), "burst_vol": r(burst_vol, 0), "post_vol": r(post_vol, 0), "vol_dry": vol_dry,
+        "lu_vol": r(lu_avg, 0), "day_vol": r(day_avg, 0), "vol_reasons": vol_reasons,
         "vol": r(v[last], 0), "turnover": r(v[last] * c[last] / 1e5, 2),
         "foreign": f_sum, "trust": t_sum, "margin_chg": r(margin_chg, 1), "short_ratio": r(short_ratio, 1),
         "alert": alerts,
@@ -600,8 +632,10 @@ def ai_notes(rows: list[dict]) -> dict | None:
 STATUS_LABEL = {
     "running": "連板鎖單中", "early": "首根跳空漲停", "buyzone": "回測缺口・買點區",
     "consolidating": "強勢整理", "breakout": "整理後再創新高", "failed": "缺口回補・型態失敗",
+    "lowvol": "量能不足・剔除",
 }
-STATUS_ORDER = ["buyzone", "breakout", "consolidating", "running", "early", "failed"]
+STATUS_ORDER = ["buyzone", "breakout", "consolidating", "running", "early", "lowvol", "failed"]
+EXCLUDED = ("failed", "lowvol")  # 不列入可操作名單
 
 
 def build_zone(ctx, names, idx_bars):
@@ -638,7 +672,7 @@ def build_zone(ctx, names, idx_bars):
     pooled = [ev for x in rows for ev in x["history"]]
     for x in rows:
         x["hist"] = _hist_stats(x.pop("history"))
-    rows.sort(key=lambda x: (x["status"] == "failed", -x["score"]))
+    rows.sort(key=lambda x: (x["status"] in EXCLUDED, x["status"] == "failed", -x["score"]))
     rows = rows[:MAX_CANDIDATES]
 
     senti = market_sentiment(daily, idx_bars, sz.get("vix"))
@@ -657,6 +691,8 @@ def build_zone(ctx, names, idx_bars):
         "counts": counts,
         "status_label": STATUS_LABEL,
         "status_order": STATUS_ORDER,
+        "excluded": list(EXCLUDED),
+        "vol_rule": {"lu": MIN_LU_VOL, "day": MIN_DAY_VOL},
         "pooled": _hist_stats(pooled),
         "scanned": len(sz.get("candidates") or []),
         "ai": False,
@@ -665,7 +701,7 @@ def build_zone(ctx, names, idx_bars):
 
 def attach_ai(zone):
     """在網站資料產生後,用 Claude 為候選股補上題材判讀(沒有 key 就略過)。"""
-    rows = [x for x in zone["rows"] if x["status"] != "failed"]
+    rows = [x for x in zone["rows"] if x["status"] not in EXCLUDED]
     notes = ai_notes(rows)
     if not notes:
         return zone

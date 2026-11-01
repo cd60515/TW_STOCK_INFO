@@ -54,7 +54,7 @@ def _surge(sz):
     return {
         "market_temperature": {"score": se.get("score"), "label": se.get("label"), "warnings": se.get("warnings")},
         "gap_limit_up_stocks": [f"{x['code']} {x['name']} {sz['status_label'][x['status']]} 續航{x['score']:.0f}"
-                                for x in sz["rows"] if x["status"] != "failed"][:6],
+                                for x in sz["rows"] if x["status"] not in sz.get("excluded", ["failed"])][:6],
     }
 
 
