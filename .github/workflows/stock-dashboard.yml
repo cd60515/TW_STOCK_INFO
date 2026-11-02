@@ -17,6 +17,7 @@ on:
       - 'stock_dashboard/site/index.html'
       - 'stock_dashboard/site/app.js'
       - 'stock_dashboard/site/style.css'
+      - 'stock_dashboard/site/vendor/**'
       - '.github/workflows/stock-dashboard.yml'
   workflow_dispatch:
     inputs:
