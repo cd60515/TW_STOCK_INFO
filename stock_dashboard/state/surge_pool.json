@@ -1,4 +1,21 @@
 {
+ "1709": {
+  "add_close": 64.3,
+  "add_score": 76.0,
+  "add_status": "pullback",
+  "added": "2026-10-05",
+  "base": 44.0,
+  "end": "2026-10-05",
+  "expires": "2027-01-03",
+  "gap_bot": 48.4,
+  "gap_top": 51.6,
+  "last": "2026-11-02",
+  "last_close": 47.5,
+  "last_status": "pullback",
+  "name": "和益",
+  "peak": 66.3,
+  "start": "2026-09-30"
+ },
  "2033": {
   "add_close": 65.7,
   "add_score": 81.0,
@@ -15,6 +32,23 @@
   "name": "佳大",
   "peak": 73.3,
   "start": "2026-10-14"
+ },
+ "2305": {
+  "add_close": 71.1,
+  "add_score": 76.0,
+  "add_status": "pullback",
+  "added": "2026-10-12",
+  "base": 58.9,
+  "end": "2026-10-12",
+  "expires": "2027-01-10",
+  "gap_bot": 60.2,
+  "gap_top": 62.2,
+  "last": "2026-11-02",
+  "last_close": 50.3,
+  "last_status": "pullback",
+  "name": "全友",
+  "peak": 74.7,
+  "start": "2026-10-08"
  },
  "2466": {
   "add_close": 315.5,
