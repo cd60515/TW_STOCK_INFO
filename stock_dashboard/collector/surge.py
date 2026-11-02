@@ -13,7 +13,10 @@
      日線再漂亮,月線圖上方壓著大均線就只是空頭格局裡的反彈,套牢賣壓重,剔除。
   7. 量能門檻:漲停日均量、平日均量,以及「起漲前 60 日的成交量中位數」都要達標;
      平常沒人交易、只有漲停那幾天爆量的冷門股,進出困難,剔除。
-  8. 大盤環境:市場越恐慌,強勢股越容易成為資金避風港(逆勢抗跌);
+  8. 長線回檔・中線買點:短線缺口被回補(短線客出場),但月 K 仍是強勢多頭
+     (3>6>12>20 月均線多頭排列、年線 3 個月上揚 ≥ 20%)、股價自高點回檔 ≥ 15% 且守住所有大均線,
+     屬於長線多頭的回檔,反而是中線買點(以季線為支撐,持有週期以週~月計)。
+  9. 大盤環境:市場越恐慌,強勢股越容易成為資金避風港(逆勢抗跌);
      市場極度貪婪、融資高檔時,要提高警覺、降低部位。
 
 市場溫度計 0(極度恐慌)~100(極度貪婪),由七項公開資料等權平均:
@@ -38,6 +41,9 @@ MODEL = "claude-opus-5-5"
 # 量能門檻(張):成交量太小的股票進出困難、容易被少數人拉抬,直接剔除
 MIN_LU_VOL = 1000     # 漲停日平均成交量
 MIN_DAY_VOL = 800     # 近 20 日「非漲停日」平均成交量
+# 長線回檔・中線買點(缺口已回補,但月 K 強勢多頭)
+PB_MA12_RISE = 20     # 月 K 年線(12 月均線)近 3 個月至少上揚 %
+PB_MIN_DROP = 15      # 自高點至少回檔 %(回檔不夠深就不算買點)
 MIN_BASE_VOL = 300    # 起漲前 60 日的成交量中位數(平常就要有人交易,不是只有漲停那幾天爆量)
 # 大均線:(日線天數, 月 K 月數, 名稱)。收盤必須站上全部,否則上方有大均線壓力。
 # 20 月線、60 月線只看月 K(日線天數為 None)。上市未滿 N 個月的股票,該條均線略過不判斷。
@@ -329,6 +335,19 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     if ma_over and status not in ("failed", "lowvol"):
         status = "overhead"
 
+    # 長線回檔:短線缺口回補了,但月 K 仍是強勢多頭 → 中線買點
+    pb = None
+    _mc = [m["close"] for m in month_bars(dates, o, h, l, c, v, last, mlong)]
+    if len(_mc) >= 23 and n >= 60:
+        m3, m6, m12, m20 = (mean(_mc[-k:]) for k in (3, 6, 12, 20))
+        m12_prev = mean(_mc[-15:-3])
+        pb = {"m3": r(m3), "m6": r(m6), "m12": r(m12), "m20": r(m20), "d60": r(mean(c[-60:])),
+              "aligned": m3 > m6 > m12 > m20, "m12_rise": r((m12 / m12_prev - 1) * 100, 1),
+              "drop": r((c[last] / peak - 1) * 100, 1)}
+        if (status == "failed" and not vol_reasons and not ma_over and pb["aligned"]
+                and pb["m12_rise"] >= PB_MA12_RISE and pb["drop"] <= -PB_MIN_DROP):
+            status = "pullback"
+
     # 籌碼:型態期間法人與融資
     period = dates[max(0, s - 1):]
     f_sum = t_sum = None
@@ -421,6 +440,24 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         bd.append({"group": "大均線", "label": f"通過:已站上所有大均線({ma_txt})", "pts": 0, "max": 0})
     else:
         bd.append({"group": "大均線", "label": "上市時間太短,大均線資料不足", "pts": 0, "max": 0})
+    if status == "pullback":  # 中線買點另外計分:短線缺口的分數已不適用
+        d60 = pb["d60"]
+        near = (c[last] / d60 - 1) * 100
+        v5, v20 = _avg_pos(v[-5:]), _avg_pos(v[-20:])
+        shrink = v5 / v20 if v5 and v20 else None
+        bd = [b for b in bd if b["group"] in ("籌碼", "風險", "量能門檻", "大均線")]
+        bd.insert(0, {"group": "中線", "label": "短線缺口已回補(短線客出場),改看中線", "pts": 0, "max": 0})
+        sc = 0
+        sc += add("中線", f"月K多頭排列:3月 {pb['m3']} > 6月 {pb['m6']} > 12月 {pb['m12']} > 20月 {pb['m20']}", 15, 15)
+        sc += add("中線", f"年線 3 個月上揚 {pb['m12_rise']:.0f}%" + (",主升段" if pb["m12_rise"] >= 40 else ""),
+                  15 if pb["m12_rise"] >= 40 else 10, 15)
+        sc += add("中線", f"距季線 {d60}(日 60 日均線){near:+.1f}%" + (",已接近支撐" if near <= 8 else ",離支撐還遠,等拉回"),
+                  20 if near <= 8 else 12 if near <= 15 else 6, 20)
+        sc += add("中線", "近 5 日量縮至 20 日均量的 " + (f"{shrink * 100:.0f}%" if shrink else "—") + ",賣壓減輕",
+                  15 if shrink and shrink <= 0.5 else 8 if shrink and shrink <= 0.8 else 3, 15)
+        sc += add("中線", f"自高點回檔 {abs(pb['drop']):.0f}%,上檔空間大", 5 if pb["drop"] <= -25 else 3, 5)
+        sc += sum(b["pts"] for b in bd if b["group"] in ("籌碼", "風險"))
+        bd.sort(key=lambda b: b["group"] != "中線")
     if status == "failed":  # 型態失敗:不論其他條件多好,都不應排在可操作名單前面
         sc = min(sc, 30)
     if status in ("lowvol", "overhead"):  # 量能不足 / 大均線壓力:不列入可操作名單
@@ -438,6 +475,10 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     entry_lo, entry_hi = r(k_top), r(k_top * 1.03)
     if status == "breakout":  # 第二波的買點是沿 5 日線,而不是回到缺口
         entry_lo, entry_hi = r(min(ma5, c[last])), r(c[last])
+    if status == "pullback":  # 中線:季線附近分批,跌破季線 5% 停損,目標前高
+        entry_lo, entry_hi = r(pb["d60"]), r(min(c[last], pb["d60"] * 1.05))
+        stop = round(pb["d60"] * 0.95, 2)
+        t1 = r(peak)
     plans = {
         "running": f"連板鎖單中不追價。等開板後量縮回測 {r(k_top)}(缺口上緣)不破再分批布局。",
         "early": f"首根跳空漲停,尚未確認連板。可小量試單,收盤跌破 {r(k_bot)}(缺口下緣)即出場。",
@@ -445,6 +486,9 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "consolidating": f"強勢整理中,距缺口仍有距離。等拉回 {entry_lo}~{entry_hi} 或帶量突破 {r(peak)} 再進場。",
         "breakout": f"整理後再創新高(第二波)。可沿 5 日線 {r(ma5)} 操作,跌破 10 日線 {r(ma10)} 減碼、跌破 {stop} 出場。",
         "failed": f"突破缺口已回補,型態失敗,不進場;持有者應停損出場。",
+        "pullback": (f"短線缺口已回補、短線客出場,但月K多頭排列、年線 3 個月上揚 {pb['m12_rise']:.0f}%,屬長線多頭的回檔。"
+                     f"中線買點在季線 {entry_lo}~{entry_hi} 附近量縮止跌時分批布局,收盤跌破 {stop} 停損,第一目標前高 {r(peak)}。"
+                     "持有週期以週~月計,不是隔日沖。") if pb else "",
         "lowvol": "成交量未達門檻(" + "、".join(vol_reasons) + "),流動性不足、容易被少數人拉抬,不列入操作。",
         "overhead": f"日線型態雖然成立,但股價還在{'、'.join(ma_over)}之下,屬於空頭格局裡的反彈,"
                     f"上方套牢賣壓重、隨時可能拉回。等收盤站上{'、'.join(ma_over)}再重新評估。",
@@ -490,7 +534,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         "base_pos": r(base_pos, 0), "pre60": r(pre60, 1),
         "pre_vol": r(pre_vol, 0), "burst_vol": r(burst_vol, 0), "post_vol": r(post_vol, 0), "vol_dry": vol_dry,
         "lu_vol": r(lu_avg, 0), "day_vol": r(day_avg, 0), "base_vol": r(base_med, 0), "vol_reasons": vol_reasons,
-        "mas": ma_info, "ma_over": ma_over,
+        "mas": ma_info, "ma_over": ma_over, "pb": pb,
         "vol": r(v[last], 0), "turnover": r(v[last] * c[last] / 1e5, 2),
         "foreign": f_sum, "trust": t_sum, "margin_chg": r(margin_chg, 1), "short_ratio": r(short_ratio, 1),
         "alert": alerts,
@@ -736,9 +780,9 @@ def ai_notes(rows: list[dict]) -> dict | None:
 STATUS_LABEL = {
     "running": "連板鎖單中", "early": "首根跳空漲停", "buyzone": "回測缺口・買點區",
     "consolidating": "強勢整理", "breakout": "整理後再創新高", "failed": "缺口回補・型態失敗",
-    "lowvol": "量能不足・剔除", "overhead": "大均線壓力・剔除",
+    "lowvol": "量能不足・剔除", "overhead": "大均線壓力・剔除", "pullback": "長線回檔・中線買點",
 }
-STATUS_ORDER = ["buyzone", "breakout", "consolidating", "running", "early", "overhead", "lowvol", "failed"]
+STATUS_ORDER = ["buyzone", "breakout", "pullback", "consolidating", "running", "early", "overhead", "lowvol", "failed"]
 EXCLUDED = ("failed", "lowvol", "overhead")  # 不列入可操作名單
 
 
