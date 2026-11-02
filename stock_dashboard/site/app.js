@@ -516,7 +516,7 @@
         <td>${EX.includes(x.status) ? "—" : pct((x.close / x.plan.entry_hi - 1) * 100, 1)}</td>
         <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td></tr>`).join("")}
       </tbody></table></div>`
-      : rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th title="收盤是否站上季線/半年線/年線(日線與月K都看)與月K的 20 月線、60 月線;紅字 = 還差幾 %">大均線</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
+      : rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th title="收盤是否站上季線/半年線/年線(日線)與月K的 20 月線、60 月線;紅字 = 還差幾 %">大均線</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
       ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
         <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}${x.signal && !EX.includes(x.status) ? " " + chip("到達買點", "bull2") : ""}${x.pool && x.days_since > 20 ? ` <small class="muted" title="入池 ${esc(x.pool.added)},剩 ${x.pool.days_left} 天">追蹤中</small>` : ""}</td>
         <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td>
@@ -536,7 +536,7 @@
         <li class="bull"><span><b>低基期優先</b>:起漲前位於一年區間低檔的續航力較好;高檔連板容易是末升段。</span></li>
         <li class="info"><span><b>追蹤池</b>:強勢股不買在當下,一律等回測。入選過的股票自動保留 ${Z.pool_days || 90} 天,每天重新判斷是否回到買點,到了就標示「到達買點」。</span></li>
         <li class="bull"><span><b>長線回檔・中線買點</b>:短線缺口被回補(短線客出場),但月 K 仍是強勢多頭(3>6>12>20 月均線多頭排列、年線 3 個月上揚 ≥ 20%),股價自高點回檔 ≥ 15% 且守住所有大均線 → 不是型態失敗,而是長線多頭的回檔。以季線為支撐分批布局、跌破季線 5% 停損,目標前高,持有週期以週~月計。</span></li>
-        <li class="bear"><span><b>大均線壓力</b>:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線與月 K 3/6/12 月均線),以及月 K 的 20 月線、60 月線(五年線)。日線再漂亮,月線圖上方壓著大均線 = 空頭格局裡的反彈,套牢賣壓重、隨時拉回,直接剔除。</span></li>
+        <li class="bear"><span><b>大均線壓力</b>:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線),以及月 K 的 20 月線、60 月線(五年線)。日線再漂亮,月線圖上方壓著大均線 = 空頭格局裡的反彈,套牢賣壓重、隨時拉回,直接剔除。</span></li>
         <li class="bear"><span><b>量能門檻</b>:漲停日平均量至少 ${int(VR.lu)} 張、平日(非漲停日)平均量至少 ${int(VR.day)} 張${VR.base ? `,起漲前 60 日成交量中位數至少 ${int(VR.base)} 張(平常沒人交易、只有漲停才爆量的冷門股)` : ""};量太小的股票進出困難、容易被少數人拉抬,直接剔除。</span></li>
         <li class="bear"><span><b>融資暴增要小心</b>:連板期間融資大增 = 散戶追價,後續容易震盪。</span></li>
         <li class="info"><span><b>看大盤溫度</b>:市場越恐慌,能逆勢鎖漲停的股票越珍貴;極度貪婪時降低部位。</span></li>

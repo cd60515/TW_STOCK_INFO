@@ -8,7 +8,7 @@
   3. 最好的買點通常不是連板當下,而是「開板後量縮整理、回測缺口不破」或「整理後再創新高」。
   4. 低基期起漲(起漲前位於一年區間的低檔)續航力較好;高檔連板容易是末升段。
   5. 融資在連板期間暴增 = 散戶追價,後續籌碼凌亂;法人同步買超較健康。
-  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線與月 K 3/6/12 月均線),
+  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線),
      以及月 K 的長期大均線 20 月線、60 月線(五年線,用 Yahoo 十年月線計算)。
      日線再漂亮,月線圖上方壓著大均線就只是空頭格局裡的反彈,套牢賣壓重,剔除。
   7. 量能門檻:漲停日均量、平日均量,以及「起漲前 60 日的成交量中位數」都要達標;
@@ -207,7 +207,7 @@ def month_bars(dates, o, h, l, c, v, end, mlong=None):
 
 
 def ma_check(dates, o, h, l, c, v, end, mlong=None):
-    """大均線檢查:在 end 這天,收盤是否站上季線/半年線/年線(日線與月 K 都要)。
+    """大均線檢查:在 end 這天,收盤是否站上季線/半年線/年線(日線)與 20/60 月線(月 K)。
     回傳 (各均線明細, 壓在上方的均線名稱)。資料不足的均線略過不判斷。"""
     px = c[end]
     months = month_bars(dates, o, h, l, c, v, end, mlong)
@@ -216,9 +216,11 @@ def ma_check(dates, o, h, l, c, v, end, mlong=None):
     for dn, mn, label in BIG_MAS:
         dv = mean(c[end - dn + 1:end + 1]) if dn and end + 1 >= dn else None
         mv = mean(mc[-mn:]) if len(mc) >= mn else None
-        avail = [x for x in (dv, mv) if x is not None]
+        # 季線/半年線/年線以日線均線為準(月 K 短均線在急漲後的下一個月會跳得很高,太敏感);
+        # 日線不足(新上市)才改用月 K。20/60 月線只有月 K。
+        avail = [dv] if dv is not None else [mv] if mv is not None else []
         bad = [x for x in avail if px < x]
-        # 距離以較高(較嚴格)的那條為準:正值 = 站上幾 %,負值 = 還差幾 %
+        # 正值 = 站上幾 %,負值 = 還差幾 %
         info.append({"label": label, "d": r(dv), "m": r(mv), "days": dn, "months": mn,
                      "dist": r((px / max(avail) - 1) * 100, 1) if avail else None,
                      "ok": not bad if avail else None})
