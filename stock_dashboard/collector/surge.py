@@ -448,9 +448,9 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
         bd = [b for b in bd if b["group"] in ("籌碼", "風險", "量能門檻", "大均線")]
         bd.insert(0, {"group": "中線", "label": "短線缺口已回補(短線客出場),改看中線", "pts": 0, "max": 0})
         sc = 0
-        sc += add("中線", f"月K多頭排列:3月 {pb['m3']} > 6月 {pb['m6']} > 12月 {pb['m12']} > 20月 {pb['m20']}", 20, 20)
+        sc += add("中線", f"月K多頭排列:3月 {pb['m3']} > 6月 {pb['m6']} > 12月 {pb['m12']} > 20月 {pb['m20']}", 15, 15)
         sc += add("中線", f"年線 3 個月上揚 {pb['m12_rise']:.0f}%" + (",主升段" if pb["m12_rise"] >= 40 else ""),
-                  20 if pb["m12_rise"] >= 40 else 14, 20)
+                  15 if pb["m12_rise"] >= 40 else 10, 15)
         sc += add("中線", f"距季線 {d60}(日 60 日均線){near:+.1f}%" + (",已接近支撐" if near <= 8 else ",離支撐還遠,等拉回"),
                   20 if near <= 8 else 12 if near <= 15 else 6, 20)
         sc += add("中線", "近 5 日量縮至 20 日均量的 " + (f"{shrink * 100:.0f}%" if shrink else "—") + ",賣壓減輕",
