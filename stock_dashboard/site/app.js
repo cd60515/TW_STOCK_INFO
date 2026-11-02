@@ -804,9 +804,26 @@
     new MutationObserver(route).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   }
 
+  // 手機網路不穩時單次請求可能卡住或中斷(Safari 顯示 Load failed):每次最多等 20 秒,失敗自動重試
+  function loadData(attempt = 1) {
+    const ctrl = window.AbortController ? new AbortController() : null;
+    const timer = ctrl && setTimeout(() => ctrl.abort(), 20000);
+    const url = "data/dashboard.json" + (attempt > 1 ? "?retry=" + Date.now() : "");
+    return fetch(url, { cache: "no-cache", signal: ctrl && ctrl.signal })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .finally(() => clearTimeout(timer))
+      .catch((e) => {
+        if (attempt >= 3) throw e;
+        $app.innerHTML = `<p class="muted">資料載入失敗,${attempt * 2} 秒後重試(第 ${attempt + 1} 次)…</p>`;
+        return new Promise((ok) => setTimeout(ok, attempt * 2000)).then(() => loadData(attempt + 1));
+      });
+  }
+
   if (window.__DASHBOARD__) start(window.__DASHBOARD__);
-  else fetch("data/dashboard.json", { cache: "no-cache" })
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  else loadData()
     .then(start)
-    .catch((e) => { $app.innerHTML = `<section class="panel"><p>無法載入資料(${esc(e.message)})。請確認 GitHub Actions 已執行過一次,或直接開啟每日 email 附件中的單檔報告。</p></section>`; });
+    .catch((e) => {
+      const msg = e.name === "AbortError" ? "連線逾時" : e.message;
+      $app.innerHTML = `<section class="panel"><p>無法載入資料(${esc(msg)}),已重試 3 次。可能是網路連線不穩,請<a href="javascript:location.reload()">重新整理</a>、切換 Wi-Fi/行動網路,或直接開啟每日 email 附件中的單檔報告。</p></section>`;
+    });
 })();
