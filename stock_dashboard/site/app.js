@@ -444,7 +444,7 @@
   }
 
   // ---------------------------------------------------------------- 飆股專區
-  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", lowvol: "neutral", overhead: "neutral", failed: "bear" };
+  const SURGE_CHIP = { buyzone: "bull2", breakout: "bull2", consolidating: "bull", running: "warn", early: "neutral", lowvol: "neutral", overhead: "neutral", pullback: "bull", failed: "bear" };
   // 飆股 K 線週期:日 K 看缺口與買點,週 K / 月 K 看上方有沒有大均線壓力
   const SURGE_K = {
     D: { name: "日K", key: "series", show: 120, mas: [[5, "MA5", "#e8a33d"], [20, "月線", "#3f86e0"], [60, "季線", "#d6609b"], [120, "半年線", "#5aa69a"], [240, "年線", "#8a8f99"]] },
@@ -521,6 +521,7 @@
         <li class="bull"><span><b>缺口是生命線</b>:回測缺口不補 = 型態成立;缺口被完全回補 = 型態失敗,立刻出場。</span></li>
         <li class="bull"><span><b>買點</b>:不追連板,等「開板後量縮、回測缺口不破」或「整理後帶量再創新高」。</span></li>
         <li class="bull"><span><b>低基期優先</b>:起漲前位於一年區間低檔的續航力較好;高檔連板容易是末升段。</span></li>
+        <li class="bull"><span><b>長線回檔・中線買點</b>:短線缺口被回補(短線客出場),但月 K 仍是強勢多頭(3>6>12>20 月均線多頭排列、年線 3 個月上揚 ≥ 20%),股價自高點回檔 ≥ 15% 且守住所有大均線 → 不是型態失敗,而是長線多頭的回檔。以季線為支撐分批布局、跌破季線 5% 停損,目標前高,持有週期以週~月計。</span></li>
         <li class="bear"><span><b>大均線壓力</b>:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線與月 K 3/6/12 月均線),以及月 K 的 20 月線、60 月線(五年線)。日線再漂亮,月線圖上方壓著大均線 = 空頭格局裡的反彈,套牢賣壓重、隨時拉回,直接剔除。</span></li>
         <li class="bear"><span><b>量能門檻</b>:漲停日平均量至少 ${int(VR.lu)} 張、平日(非漲停日)平均量至少 ${int(VR.day)} 張${VR.base ? `,起漲前 60 日成交量中位數至少 ${int(VR.base)} 張(平常沒人交易、只有漲停才爆量的冷門股)` : ""};量太小的股票進出困難、容易被少數人拉抬,直接剔除。</span></li>
         <li class="bear"><span><b>融資暴增要小心</b>:連板期間融資大增 = 散戶追價,後續容易震盪。</span></li>
@@ -575,7 +576,7 @@
           <div class="ph"><span>操作計畫</span>${p.rr != null ? `<small>風險報酬比 1 : ${fmt(p.rr, 2)}</small>` : ""}</div>
           <div>${esc(p.text)}</div>
           <div class="levels">
-            <div class="lv"><span class="label">${x.status === "breakout" ? "買點區(5 日線)" : "買點區(缺口上緣)"}</span><b>${fmt(p.entry_lo)}</b><small>~ ${fmt(p.entry_hi)}</small></div>
+            <div class="lv"><span class="label">${x.status === "breakout" ? "買點區(5 日線)" : x.status === "pullback" ? "中線買點(季線)" : "買點區(缺口上緣)"}</span><b>${fmt(p.entry_lo)}</b><small>~ ${fmt(p.entry_hi)}</small></div>
             <div class="lv stop"><span class="label">停損</span><b>${fmt(p.stop)}</b><small>${p.stop_pct}%</small></div>
             <div class="lv tgt"><span class="label">目標 1 / 2</span><b>${fmt(p.target1)}</b><small>+${p.target1_pct}% ・ ${fmt(p.target2)}</small></div>
           </div>
@@ -628,8 +629,12 @@
     const anchor = ch.addLineSeries({ color: "transparent", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     anchor.setData(S.date.map((t, i) => ({ time: t, value: S.close[i] })));
     const line = (price, color, title, style = 2) => anchor.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
-    line(x.key_top, css("--up"), "缺口上緣");
-    line(x.key_bot, css("--up"), "缺口下緣");
+    if (x.status === "pullback") {  // 缺口已回補,改標季線買點區
+      if (k === "D") { line(x.plan.entry_lo, css("--up"), "中線買點"); line(x.plan.target1, css("--muted"), "前高", 1); }
+    } else {
+      line(x.key_top, css("--up"), "缺口上緣");
+      line(x.key_bot, css("--up"), "缺口下緣");
+    }
     line(x.plan.stop, css("--down"), "停損", 0);
     line(x.base, css("--muted"), "起漲");
     if (LC && S.lu) anchor.setMarkers(S.date.map((t, i) => S.lu[i] ? { time: t, position: "aboveBar", color: css("--up"), shape: "arrowUp", text: "" } : null).filter(Boolean));
