@@ -52,6 +52,9 @@ def main():
     if dash.get("surge"):
         surge.attach_ai(dash["surge"])
     dash = _clean(dash)
+    if not args.demo and dash.get("surge"):  # 追蹤池存回 state/,由 GitHub Actions commit 保存
+        (ROOT / "state" / "surge_pool.json").write_text(
+            json.dumps(dash["surge"].get("pool") or {}, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
 
     out = Path(args.out)
     (out / "data").mkdir(parents=True, exist_ok=True)

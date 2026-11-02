@@ -223,6 +223,10 @@ def collect_live(root: Path, watchlist: list[dict]):
 
     # 飆股專區:先用全市場快照找出近期漲停股,再抓完整日線做精確型態判斷
     cands = SG.find_candidates(daily)
+    # 追蹤池:曾經入選的股票保留 90 天,每天繼續追蹤是否回到買點
+    pool = SG.pool_active(_load(state / "surge_pool.json", {}), now.strftime("%Y-%m-%d"))
+    pooled = [c for c in pool if c not in cands]
+    cands = cands + pooled
     surge_bars, surge_news = {}, {}
     surge_monthly = {}
     for c in cands:
@@ -233,7 +237,7 @@ def collect_live(root: Path, watchlist: list[dict]):
         m = S.yahoo_chart(http, c + ".TW", range_="10y", interval="1mo")
         if m:
             surge_monthly[c] = m
-    for c in cands[:40]:
+    for c in cands[:40] + [c for c in pooled if c not in cands[:40]][:40]:
         surge_news[c] = S.google_news(http, f"{names.get(c, c)} {c} when:14d", limit=8)
     vix = S.yahoo_chart(http, "^VIX", range_="1y")
     if vix:
@@ -241,7 +245,7 @@ def collect_live(root: Path, watchlist: list[dict]):
     else:
         vix = _load(state / "prices" / "VIX.json", [])
     alerts = S.twse_alerts(http)
-    S.log(f"[info] 飆股候選 {len(cands)} 檔(日線 {len(surge_bars)} 檔)、VIX {len(vix or [])} 筆、注意/處置 {len(alerts)} 檔")
+    S.log(f"[info] 飆股候選 {len(cands)} 檔(含追蹤池 {len(pooled)} 檔;日線 {len(surge_bars)} 檔)、VIX {len(vix or [])} 筆、注意/處置 {len(alerts)} 檔")
 
     S.log(f"[info] 收集完成,TWSE 請求 {http.twse_calls} 次")
     return {
@@ -257,6 +261,6 @@ def collect_live(root: Path, watchlist: list[dict]):
         "names": names,
         "news": news,
         "market_news": market_news,
-        "surge": {"candidates": cands, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "alerts": alerts},
+        "surge": {"candidates": cands, "pool": pool, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "alerts": alerts},
         "data_complete": "margin" in latest_idx and "t86" in latest_idx,
     }

@@ -8,7 +8,7 @@
   3. 最好的買點通常不是連板當下,而是「開板後量縮整理、回測缺口不破」或「整理後再創新高」。
   4. 低基期起漲(起漲前位於一年區間的低檔)續航力較好;高檔連板容易是末升段。
   5. 融資在連板期間暴增 = 散戶追價,後續籌碼凌亂;法人同步買超較健康。
-  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線與月 K 3/6/12 月均線),
+  6. 大均線壓力:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線),
      以及月 K 的長期大均線 20 月線、60 月線(五年線,用 Yahoo 十年月線計算)。
      日線再漂亮,月線圖上方壓著大均線就只是空頭格局裡的反彈,套牢賣壓重,剔除。
   7. 量能門檻:漲停日均量、平日均量,以及「起漲前 60 日的成交量中位數」都要達標;
@@ -35,7 +35,8 @@ from statistics import mean
 from .analysis import r
 
 LOOKBACK = 20         # 型態必須在最近 20 個交易日內發生
-MAX_CANDIDATES = 60   # 網站最多顯示幾檔(依續航分排序)
+MAX_CANDIDATES = 60   # 網站最多顯示幾檔新候選(依續航分排序;追蹤池另計)
+POOL_DAYS = 90        # 入選後保留在追蹤池的天數(日曆日):強勢股常要等好幾週才回測到買點
 CHART_BARS = 160      # 每檔附的日 K 根數(週 K / 月 K 另外附全部兩年)
 MODEL = "claude-opus-5-5"
 # 量能門檻(張):成交量太小的股票進出困難、容易被少數人拉抬,直接剔除
@@ -206,7 +207,7 @@ def month_bars(dates, o, h, l, c, v, end, mlong=None):
 
 
 def ma_check(dates, o, h, l, c, v, end, mlong=None):
-    """大均線檢查:在 end 這天,收盤是否站上季線/半年線/年線(日線與月 K 都要)。
+    """大均線檢查:在 end 這天,收盤是否站上季線/半年線/年線(日線)與 20/60 月線(月 K)。
     回傳 (各均線明細, 壓在上方的均線名稱)。資料不足的均線略過不判斷。"""
     px = c[end]
     months = month_bars(dates, o, h, l, c, v, end, mlong)
@@ -215,9 +216,11 @@ def ma_check(dates, o, h, l, c, v, end, mlong=None):
     for dn, mn, label in BIG_MAS:
         dv = mean(c[end - dn + 1:end + 1]) if dn and end + 1 >= dn else None
         mv = mean(mc[-mn:]) if len(mc) >= mn else None
-        avail = [x for x in (dv, mv) if x is not None]
+        # 季線/半年線/年線以日線均線為準(月 K 短均線在急漲後的下一個月會跳得很高,太敏感);
+        # 日線不足(新上市)才改用月 K。20/60 月線只有月 K。
+        avail = [dv] if dv is not None else [mv] if mv is not None else []
         bad = [x for x in avail if px < x]
-        # 距離以較高(較嚴格)的那條為準:正值 = 站上幾 %,負值 = 還差幾 %
+        # 正值 = 站上幾 %,負值 = 還差幾 %
         info.append({"label": label, "d": r(dv), "m": r(mv), "days": dn, "months": mn,
                      "dist": r((px / max(avail) - 1) * 100, 1) if avail else None,
                      "ok": not bad if avail else None})
@@ -239,7 +242,8 @@ def _forward(c, h, e, n):
     return res
 
 
-def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: dict) -> dict | None:
+def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: dict,
+            lookback: int = LOOKBACK) -> dict | None:
     n = len(bars)
     if n < 25:
         return None
@@ -254,7 +258,7 @@ def analyze(code: str, bars: list[dict], name: str, chips_by_date: dict, extra: 
     one_word = [lu[i] and o[i] == h[i] == l[i] == c[i] for i in range(n)]
 
     events = _pattern_events(o, h, l, c, lu, gap)
-    recent = [ev for ev in events if ev[1] >= n - LOOKBACK]
+    recent = [ev for ev in events if ev[1] >= n - lookback]
     kind = None
     if recent:
         s, e = recent[-1]
@@ -786,6 +790,48 @@ STATUS_ORDER = ["buyzone", "breakout", "pullback", "consolidating", "running", "
 EXCLUDED = ("failed", "lowvol", "overhead")  # 不列入可操作名單
 
 
+# ---------------------------------------------------------------- 追蹤池
+
+SIGNAL_STATUS = ("buyzone", "breakout", "pullback")
+
+
+def pool_active(pool: dict, today: str) -> dict:
+    """去掉已過期(入池超過 POOL_DAYS 天)的股票。"""
+    return {c: p for c, p in (pool or {}).items() if p.get("expires", "") >= today}
+
+
+def entry_signal(x) -> bool:
+    """是否到達買點:回測缺口買點區、整理後再創新高,或中線回檔且股價已回到季線買點區附近。"""
+    if x["status"] in ("buyzone", "breakout"):
+        return True
+    return x["status"] == "pullback" and x["close"] <= x["plan"]["entry_hi"] * 1.02
+
+
+def update_pool(pool: dict, rows: list[dict], today: str) -> dict:
+    """新入選(可操作)的股票放進追蹤池;已在池中的更新最新狀態。入池時的條件快照保留不動。"""
+    from datetime import date, timedelta
+    pool = dict(pool)
+    for x in rows:
+        p = pool.get(x["code"])
+        if p is None and x["status"] not in EXCLUDED:
+            # 入池日 = 型態完成日(第一次能被發現的日子),保留 POOL_DAYS 天
+            added = min(x["end"], today)
+            sd = x["series"]["date"]
+            add_close = x["series"]["close"][sd.index(added)] if added in sd else x["close"]
+            p = pool[x["code"]] = {
+                "name": x["name"], "added": added,
+                "expires": (date.fromisoformat(added) + timedelta(days=POOL_DAYS)).isoformat(),
+                "add_close": add_close, "add_status": x["status"], "add_score": x["score"],
+                "start": x["start"], "end": x["end"], "base": x["base"], "peak": x["peak"],
+                "gap_bot": x["gap_bot"], "gap_top": x["gap_top"],
+            }
+        if p is not None:
+            p.update({"last": today, "last_status": x["status"], "last_close": x["close"], "name": x["name"]})
+            if x["status"] not in EXCLUDED:
+                p["peak"] = max(p.get("peak") or 0, x["peak"])
+    return pool
+
+
 def build_zone(ctx, names, idx_bars):
     daily = ctx["daily"]
     sz = ctx.get("surge") or {}
@@ -794,6 +840,7 @@ def build_zone(ctx, names, idx_bars):
         chips_by_date[d] = {"t86_all": snap.get("t86") or {}, "margin_all": snap.get("margin") or {}}
 
     rows = []
+    pool = sz.get("pool") or {}
     for code in sz.get("candidates") or []:
         bars = (sz.get("bars") or {}).get(code) or bars_from_snapshots(code, daily)
         if not bars:
@@ -805,10 +852,15 @@ def build_zone(ctx, names, idx_bars):
             bars = bars + [{"date": latest_d, "open": p["open"], "high": p["high"], "low": p["low"],
                             "close": p["close"], "volume": int((p.get("vol") or 0) * 1000)}]
         cbd = {d: {"t86": x["t86_all"].get(code), "margin": x["margin_all"].get(code)} for d, x in chips_by_date.items()}
+        lb = LOOKBACK
+        if code in pool:  # 追蹤池的股票:型態可能早已超過 20 日,往回看到起漲日
+            ds = [b["date"] for b in bars]
+            st = pool[code].get("start")
+            lb = max(LOOKBACK, len(ds) - next((i for i, d in enumerate(ds) if d >= st), len(ds)) + 1) if st else LOOKBACK
         try:
             a = analyze(code, bars, names.get(code, code), cbd,
                         {"industry": ctx["industries"].get(code), "alerts": sz.get("alerts") or {},
-                         "monthly": (sz.get("monthly") or {}).get(code)})
+                         "monthly": (sz.get("monthly") or {}).get(code)}, lookback=lb)
         except Exception as e:  # 單檔異常不影響整體
             print(f"[warn] 飆股分析 {code} 失敗: {e!r}")
             a = None
@@ -822,7 +874,21 @@ def build_zone(ctx, names, idx_bars):
     for x in rows:
         x["hist"] = _hist_stats(x.pop("history"))
     rows.sort(key=lambda x: (x["status"] in EXCLUDED, x["status"] == "failed", -x["score"]))
-    rows = rows[:MAX_CANDIDATES]
+    # 新候選依分數取前 MAX_CANDIDATES 檔;追蹤池的股票一律保留
+    fresh = [x for x in rows if x["code"] not in pool][:MAX_CANDIDATES]
+    keep = {x["code"] for x in fresh} | set(pool)
+    rows = [x for x in rows if x["code"] in keep]
+    today = daily[-1][0]
+    new_pool = update_pool(pool_active(pool, today), rows, today)
+    for x in rows:
+        p = new_pool.get(x["code"])
+        x["signal"] = entry_signal(x)
+        if p:
+            from datetime import date
+            x["pool"] = {"added": p["added"], "expires": p["expires"], "add_close": p["add_close"],
+                         "add_status": p["add_status"],
+                         "days_left": (date.fromisoformat(p["expires"]) - date.fromisoformat(today)).days,
+                         "chg": r((x["close"] / p["add_close"] - 1) * 100, 1) if p.get("add_close") else None}
 
     senti = market_sentiment(daily, idx_bars, sz.get("vix"))
     # 大盤環境加減分:越恐慌越有利(強勢股抗跌、資金集中),極度貪婪扣分
@@ -844,6 +910,7 @@ def build_zone(ctx, names, idx_bars):
         "vol_rule": {"lu": MIN_LU_VOL, "day": MIN_DAY_VOL, "base": MIN_BASE_VOL},
         "ma_rule": [{"label": lb, "days": dn, "months": mn} for dn, mn, lb in BIG_MAS],
         "pooled": _hist_stats(pooled),
+        "pool": new_pool, "pool_days": POOL_DAYS,
         "scanned": len(sz.get("candidates") or []),
         "ai": False,
     }
