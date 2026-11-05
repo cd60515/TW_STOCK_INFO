@@ -503,6 +503,7 @@
         ${lineSVG(S.maint, { color: "var(--accent)", unit: "%" })}
       </section>
     </div>` : ""}
+    ${Z.oil ? oilPanel(Z.oil) : ""}
     <section class="panel">
       <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)・量能門檻:漲停日均量 ≥ ${int(VR.lu)} 張、平日均量 ≥ ${int(VR.day)} 張${VR.base ? `、起漲前量中位數 ≥ ${int(VR.base)} 張` : ""}${Z.ma_rule ? "・須站上季線/半年線/年線/20月線/60月線" : ""}</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
       <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-st="${k}" class="${surgeTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
@@ -658,12 +659,125 @@
     ch.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - K.show), to: n + 2 });
   }
 
+  // 國際原油:夜間在美國交易,台股開盤前就能看到前一晚的變化
+  function oilPanel(O) {
+    const I = O.impact;
+    return `<section class="panel">
+      <div class="ph"><span>國際原油 <small>美國盤交易,台股開盤前就能看到前一晚的變化・影響判讀以${esc(O.base)} 20 日漲跌為準</small></span>${I ? chip("油價" + I.level, I.cls) : ""}</div>
+      ${I ? `<ul class="sig" style="margin:0 0 12px"><li class="info"><span>${esc(I.text)}</span></li>${I.warn ? `<li class="bear"><span>${esc(I.warn)}</span></li>` : ""}</ul>` : ""}
+      <div class="grid g2">${O.items.map((x) => `<div>
+        <div class="kv" style="margin-bottom:8px">
+          <div><span class="label">${esc(x.name)}(${esc(x.date.slice(5))})</span><b>${fmt(x.close)} <small class="muted">美元</small></b></div>
+          <div><span class="label">1 日 / 5 日 / 20 日</span><b style="font-size:13px">${pct(x.chg1, 1)} / ${pct(x.chg5, 1)} / ${pct(x.chg20, 1)}</b></div>
+          <div><span class="label">52 週區間</span><b style="font-size:13px">${fmt(x.low52)} ~ ${fmt(x.high52)}</b></div>
+        </div>
+        ${lineSVG(x.series, { color: "var(--warn)" })}</div>`).join("")}</div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">油價急漲 → 通膨與升息預期升溫、航空/運輸/塑化下游成本上升;油價走弱 → 成本下降,但重挫時常代表全球需求疑慮。規則式判讀,僅供參考。</p>
+    </section>`;
+  }
+
+  // ---------------------------------------------------------------- 績優股池
+  const QUAL_CHIP = { buy: "bull2", deep: "bull", pullback: "neutral", high: "warn", broken: "bear", nodata: "neutral" };
+  let qualTab = store.get("qualTab", "signal");
+  let qualSel = null;
+
+  function viewQuality() {
+    const Q = D.quality;
+    if (!Q || !Q.rows.length) { $app.innerHTML = '<section class="panel"><p class="empty">績優股池資料尚未產生(下一次排程執行後就會出現)</p></section>'; return; }
+    const L = Q.status_label, R = Q.rule;
+    const tabs = [["signal", "到達買點", Q.rows.filter((x) => x.signal).length], ["all", "全部", Q.rows.length]]
+      .concat(Q.status_order.map((k) => [k, L[k], Q.counts[k] || 0]));
+    if (!tabs.some(([k]) => k === qualTab)) qualTab = "signal";
+    const rows = Q.rows.filter((x) => qualTab === "all" ? true : qualTab === "signal" ? x.signal : x.status === qualTab);
+    if (!qualSel || !Q.rows.find((x) => x.code === qualSel)) qualSel = (rows[0] || Q.rows[0]).code;
+    const dist = (x, n) => { const s = (x.supports || []).find((v) => v.days === n); return s ? `<span class="${Math.abs(s.dist) <= R.near ? "up" : ""}">${s.dist > 0 ? "+" : ""}${fmt(s.dist, 1)}%</span>` : "—"; };
+    $app.innerHTML = `
+    <section class="panel">
+      <div class="ph"><span>績優股池 <small>EPS ${esc(Q.period || "")}累計排名前 ${R.top_n} 名・入池後保留 ${R.hold_days} 天・股價拉回到季線/半年線/年線支撐就是買點</small></span></div>
+      <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-qt="${k}" class="${qualTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
+      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th>EPS 排名</th><th>EPS</th><th class="l">狀態</th><th>收盤</th><th>漲跌</th><th title="距離 52 週高點">距高點</th><th>距季線</th><th>距半年線</th><th>距年線</th><th>買點區</th><th>停損</th><th>本益比</th><th>殖利率</th><th>剩餘</th></tr></thead><tbody>
+      ${rows.map((x) => `<tr class="click${x.code === qualSel ? " sel" : ""}" data-qv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span></td>
+        <td>${x.rank ?? "—"}${x.in_rank ? "" : ' <small class="muted" title="最新一季已掉出排名,仍保留到期滿">榜外</small>'}</td><td>${fmt(x.eps)}</td>
+        <td class="l">${chip(L[x.status], QUAL_CHIP[x.status])}</td><td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${pct(x.dd, 1)}</td>
+        <td>${dist(x, 60)}</td><td>${dist(x, 120)}</td><td>${dist(x, 240)}</td>
+        <td>${x.plan && x.plan.entry_lo != null ? `${fmt(x.plan.entry_lo)}~${fmt(x.plan.entry_hi)} <small class="muted">${esc(x.plan.support)}</small>` : "—"}</td>
+        <td>${x.plan && x.plan.stop != null ? fmt(x.plan.stop) : "—"}</td>
+        <td>${x.pe == null ? "—" : fmt(x.pe, 1)}</td><td>${x.yield == null ? "—" : fmt(x.yield, 1) + "%"}</td><td>${x.days_left} 天</td></tr>`).join("")}
+      </tbody></table></div>` : '<p class="empty">目前沒有符合這個狀態的股票</p>'}
+    </section>
+    <section class="panel" id="qualDetail"></section>
+    <section class="panel"><h2>選股邏輯與紀律</h2><ul class="sig">
+      <li class="bull"><span><b>入池</b>:最新一季財報的累計 EPS(基本每股盈餘)排名前 ${R.top_n} 名的上市公司。每季財報公布後重新排名,新進榜的加入;掉出排名的不會被移除,保留到期滿。</span></li>
+      <li class="info"><span><b>保留一年</b>:入池後保留 ${R.hold_days} 天,期滿時若仍在排名內,會自動重新入池。</span></li>
+      <li class="bull"><span><b>回檔到支撐(買點)</b>:自 52 週高點回檔 ≥ ${R.pullback}%,且股價回到季線、半年線或年線 ±${R.near}% 以內。賺錢的公司不追高,等拉回。</span></li>
+      <li class="bull"><span><b>深度回檔</b>:回檔 ≥ ${R.deep}% 但仍守住年線,可分批布局。</span></li>
+      <li class="bear"><span><b>跌破年線</b>:收盤低於年線 ${R.break}% 以上,長線趨勢轉弱,先觀望、不急著接。停損參考年線下方 ${R.stop}%。</span></li>
+      <li class="info"><span><b>EPS 高不等於便宜</b>:同時看本益比與殖利率;EPS 是累計值,要留意是否含一次性業外收益。</span></li>
+    </ul></section>`;
+    $app.querySelectorAll("[data-qt]").forEach((b) => b.addEventListener("click", () => { qualTab = b.getAttribute("data-qt"); store.set("qualTab", qualTab); qualSel = null; destroyCharts(); viewQuality(); }));
+    $app.querySelectorAll("[data-qv]").forEach((tr) => tr.addEventListener("click", () => {
+      qualSel = tr.getAttribute("data-qv");
+      $app.querySelectorAll("[data-qv]").forEach((x) => x.classList.toggle("sel", x === tr));
+      renderQualDetail(true);
+    }));
+    renderQualDetail(false);
+  }
+
+  function renderQualDetail(scroll) {
+    const el = document.getElementById("qualDetail");
+    const Q = D.quality, x = Q.rows.find((r) => r.code === qualSel);
+    destroyCharts();
+    if (!x) { el.hidden = true; return; }
+    el.hidden = false;
+    const p = x.plan || {}, L = Q.status_label;
+    const mas = [[60, "季線", "#d6609b"], [120, "半年線", "#5aa69a"], [240, "年線", "#8a8f99"]];
+    el.innerHTML = `
+      <div class="stock-head">
+        <div><div class="stock-title">${esc(x.name)}<span class="cd">${esc(x.code)}${x.industry ? " ・ " + esc(x.industry) : ""}</span></div>
+          <div class="row" style="margin-top:6px">${chip(L[x.status], QUAL_CHIP[x.status])}${x.signal ? chip("到達買點", "bull2") : ""}
+            <span class="muted">EPS ${esc(x.period || "")} <b class="num" style="color:var(--ink)">${fmt(x.eps)}</b> 元(第 ${x.rank ?? "—"} 名${x.in_rank ? "" : ",已掉出排名"})</span>
+            <span class="muted">${esc(x.added)} 入池${x.add_close ? ` @ ${fmt(x.add_close)}(${pct(x.since_add, 1)})` : ""},剩 ${x.days_left} 天</span></div></div>
+        <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
+      </div>
+      ${x.series ? `<div class="legend" style="margin-top:10px">${mas.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join("")}<span><i style="background:var(--up)"></i>買點區</span><span><i style="background:var(--down)"></i>停損</span></div>
+      <div id="qualChart" class="chart-box" style="height:340px"></div>` : '<p class="empty">沒有日線資料,無法判斷回檔位置</p>'}
+      <div class="plan" style="margin-top:12px">
+        <div class="levels">
+          <div class="lv"><span class="label">買點區${p.support ? "(" + esc(p.support) + ")" : ""}</span><b>${p.entry_lo == null ? "—" : fmt(p.entry_lo)}</b><small>${p.entry_hi == null ? "" : "~ " + fmt(p.entry_hi)}</small></div>
+          <div class="lv stop"><span class="label">停損(年線下 ${Q.rule.stop}%)</span><b>${p.stop == null ? "—" : fmt(p.stop)}</b><small>${p.stop == null || !x.close ? "" : fmt((p.stop / x.close - 1) * 100, 1) + "%"}</small></div>
+          <div class="lv tgt"><span class="label">目標(52 週高點)</span><b>${p.target == null ? "—" : fmt(p.target)}</b><small>${p.target == null || !x.close ? "" : "+" + fmt((p.target / x.close - 1) * 100, 1) + "%"}</small></div>
+        </div>
+        <div class="kv">
+          <div><span class="label">距 52 週高點</span><b>${pct(x.dd, 1)}</b></div>
+          ${(x.supports || []).map((s) => `<div><span class="label">${esc(s.label)}(${s.days} 日)</span><b style="font-size:13px">${fmt(s.ma)} <small class="${Math.abs(s.dist) <= Q.rule.near ? "up" : "muted"}">${s.dist > 0 ? "+" : ""}${fmt(s.dist, 1)}%</small></b></div>`).join("")}
+          <div><span class="label">年線方向</span><b>${x.ma240_up == null ? "—" : x.ma240_up ? '<span class="up">上揚</span>' : '<span class="down">下彎</span>'}</b></div>
+          <div><span class="label">本益比 / 殖利率</span><b style="font-size:13px">${x.pe == null ? "—" : fmt(x.pe, 1)} / ${x.yield == null ? "—" : fmt(x.yield, 1) + "%"}</b></div>
+        </div>
+      </div>
+      <p style="margin:8px 0 0;font-size:13px"><a href="${quoteUrl(x.code)}" target="_blank" rel="noopener">在 Yahoo 股市查看即時報價 →</a></p>`;
+    if (x.series) {
+      const S = { date: Q.dates, ...x.series };
+      const ch = priceChart(document.getElementById("qualChart"), S, { candles: false, volume: false, mas: mas.map(([n, , c]) => [n, c]) });
+      if (ch) {
+        const anchor = ch.addLineSeries({ color: "transparent", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        anchor.setData(toLine(S, "close"));
+        const line = (price, color, title, style = 2) => price != null && anchor.createPriceLine({ price, color, lineWidth: 1, lineStyle: style, axisLabelVisible: true, title });
+        line(p.entry_hi, css("--up"), "買點區");
+        line(p.entry_lo, css("--up"), "");
+        line(p.stop, css("--down"), "停損", 0);
+      }
+    }
+    if (scroll) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function knownPrice(code) {
     const s = stockByCode(code);
     if (s) return { close: s.close, name: s.name, chg_pct: s.chg_pct, plan: s.plan };
     const t = D.market.top_turnover.find((x) => x.code === code);
     if (t) return { close: t.close, name: t.name, chg_pct: t.chg_pct };
     for (const sc of D.screens) { const r = sc.rows.find((x) => x.code === code); if (r) return { close: r.close, name: r.name, chg_pct: r.chg_pct }; }
+    const q = D.quality && D.quality.rows.find((x) => x.code === code && x.close != null);
+    if (q) return { close: q.close, name: q.name, chg_pct: q.chg_pct, plan: q.plan && q.plan.stop != null ? { stop: q.plan.stop, target1: q.plan.target } : undefined };
     const z = D.surge && D.surge.rows.find((x) => x.code === code);
     if (z) return { close: z.close, name: z.name, chg_pct: z.chg_pct, plan: { stop: z.plan.stop, target1: z.plan.target1 } };
     return null;
@@ -772,7 +886,7 @@
     const h = (location.hash || "#overview").slice(1);
     let view = h, code = null;
     if (h.startsWith("stock")) { view = "stock"; code = h.split("-")[1] || store.get("lastStock", null); }
-    const views = { overview: viewOverview, watchlist: viewWatchlist, stock: () => viewStock(code), radar: viewRadar, surge: viewSurge, portfolio: viewPortfolio, guide: viewGuide };
+    const views = { overview: viewOverview, watchlist: viewWatchlist, stock: () => viewStock(code), radar: viewRadar, surge: viewSurge, quality: viewQuality, portfolio: viewPortfolio, guide: viewGuide };
     (views[view] || viewOverview)();
     document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.view === (views[view] ? view : "overview")));
     window.scrollTo(0, 0);

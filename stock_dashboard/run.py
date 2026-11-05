@@ -55,6 +55,11 @@ def main():
     if not args.demo and dash.get("surge"):  # 追蹤池存回 state/,由 GitHub Actions commit 保存
         (ROOT / "state" / "surge_pool.json").write_text(
             json.dumps(dash["surge"].get("pool") or {}, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+    if not args.demo and dash.get("quality"):
+        (ROOT / "state" / "quality_pool.json").write_text(
+            json.dumps(dash["quality"].pop("pool") or {}, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+    elif dash.get("quality"):
+        dash["quality"].pop("pool", None)
 
     out = Path(args.out)
     (out / "data").mkdir(parents=True, exist_ok=True)
@@ -71,6 +76,10 @@ def main():
               f"、題材判讀 {'Claude' if sz['ai'] else '關鍵字'}")
         for x in sz["rows"][:8]:
             print(f"  {x['code']} {x['name']:<6} {sz['status_label'][x['status']]:<10} 續航 {x['score']:>3.0f}  連板 {x['consec']} 缺口 {x['gaps']}")
+    qz = dash.get("quality")
+    if qz:
+        print(f"績優股池:{len(qz['rows'])} 檔(EPS {qz['period']} 前 {qz['ranked']} 名)、"
+              + "、".join(f"{qz['status_label'][k]} {n}" for k, n in qz["counts"].items()))
     for s in dash["stocks"]:
         print(f"  {s['code']} {s['name']:<6} {s['close']:>9} {s['chg_pct']:+6.2f}%  {s['score']:5.1f} 分  {s['rating']}")
 
