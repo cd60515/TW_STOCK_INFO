@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import sources as S
+from . import quality as Q
 from . import surge as SG
 
 BACKFILL_DAYS = 25
@@ -244,8 +245,25 @@ def collect_live(root: Path, watchlist: list[dict]):
         _save(state / "prices" / "VIX.json", vix)
     else:
         vix = _load(state / "prices" / "VIX.json", [])
+    # 國際原油(布蘭特、WTI):夜間在美國交易,台股開盤前就能看到前一晚的變化
+    oil = {}
+    for key, _, sym in SG.OIL:
+        bars = S.yahoo_chart(http, sym, range_="1y")
+        if bars:
+            _save(state / "prices" / f"OIL_{key}.json", bars)
+        oil[key] = bars or _load(state / "prices" / f"OIL_{key}.json", [])
     alerts = S.twse_alerts(http)
     S.log(f"[info] 飆股候選 {len(cands)} 檔(含追蹤池 {len(pooled)} 檔;日線 {len(surge_bars)} 檔)、VIX {len(vix or [])} 筆、注意/處置 {len(alerts)} 檔")
+
+    # 績優股池:近四季 EPS(收盤價 ÷ 本益比)排名前段班入池保留一年
+    q_pool = Q.pool_active(_load(state / "quality_pool.json", {}), now.strftime("%Y-%m-%d"))
+    ranked, _ = Q.rank_eps(extra.get("valuation"), daily[-1][1]["px"], names)
+    q_bars = {}
+    for c in dict.fromkeys(list(q_pool) + [x["code"] for x in ranked]):
+        b = S.yahoo_chart(http, c + ".TW")
+        if b:
+            q_bars[c] = b
+    S.log(f"[info] 績優股池:EPS 排名 {len(ranked)} 檔、池內 {len(q_pool)} 檔、日線 {len(q_bars)} 檔")
 
     S.log(f"[info] 收集完成,TWSE 請求 {http.twse_calls} 次")
     return {
@@ -261,6 +279,7 @@ def collect_live(root: Path, watchlist: list[dict]):
         "names": names,
         "news": news,
         "market_news": market_news,
-        "surge": {"candidates": cands, "pool": pool, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "alerts": alerts},
+        "surge": {"candidates": cands, "pool": pool, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "oil": oil, "alerts": alerts},
+        "quality": {"pool": q_pool, "bars": q_bars},
         "data_complete": "margin" in latest_idx and "t86" in latest_idx,
     }

@@ -8,6 +8,7 @@ import pandas as pd
 from . import analysis as A
 from . import indicators as I
 from . import news as N
+from . import quality as Q
 from . import surge as SG
 
 CHART_BARS = 260  # 網站上顯示約一年的 K 線
@@ -131,6 +132,11 @@ def build(ctx, watchlist):
     except Exception as e:  # 飆股專區異常不應讓整個網站失敗
         print(f"[warn] 飆股專區產生失敗: {e!r}")
         surge = None
+    try:
+        quality = Q.build_zone(ctx)
+    except Exception as e:  # 績優股池異常不應讓整個網站失敗
+        print(f"[warn] 績優股池產生失敗: {e!r}")
+        quality = None
     stocks.sort(key=lambda x: -x["score"])
     return {
         "demo": ctx["demo"],
@@ -143,4 +149,5 @@ def build(ctx, watchlist):
         "stocks": stocks,
         "screens": screens,
         "surge": surge,
+        "quality": quality,
     }

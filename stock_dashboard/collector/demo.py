@@ -121,13 +121,19 @@ def collect_demo(watchlist):
     vix = _walk(rng, 250, 17, 0.0005, 0.05)
     for b, d in zip(vix, dates[-250:]):
         b["date"] = d
+    oil = {}
+    for key, start in (("wti", 72), ("brent", 76)):
+        oil[key] = _walk(random.Random(start), 250, start, 0.0004, 0.018)
+        for b, d in zip(oil[key], dates[-250:]):
+            b["date"] = d
     cands = find_candidates(daily)
     surge_news = {c: [{"title": "【示範】" + rng.choice(HEADLINES_POS).format(n=universe[c]), "source": "示範新聞", "link": "#",
                        "time": datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M")}] for c in cands}
     surge = {"candidates": cands, "bars": {c: walks[c] for c in cands if len(walks[c]) >= 60},
-             "news": surge_news, "vix": vix, "alerts": {"6106": "注意"}}
+             "news": surge_news, "vix": vix, "oil": oil, "alerts": {"6106": "注意"}}
     return {
         "surge": surge,
+        "quality": {"pool": {}, "bars": {c: prices[c] for c in prices}},
         "demo": True,
         "generated_at": datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M"),
         "index_bars": index_bars, "daily": daily, "prices": prices,

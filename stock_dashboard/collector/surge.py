@@ -715,6 +715,55 @@ def market_sentiment(daily, idx_bars, vix_bars):
     }
 
 
+# ---------------------------------------------------------------- 國際原油
+
+OIL = (("wti", "WTI 原油", "CL=F"), ("brent", "布蘭特原油", "BZ=F"))
+
+
+def _chg(c, n):
+    return r((c[-1] / c[-1 - n] - 1) * 100, 1) if len(c) > n and c[-1 - n] else None
+
+
+def oil_impact(chg20, chg1):
+    """依油價 20 日漲跌判讀對台股的影響(規則式,僅供參考)。"""
+    if chg20 is None:
+        return None
+    if chg20 >= 15:
+        lv, cls, text = "急漲", "bear", ("油價一個月急漲逾 15%:通膨與升息預期升溫,全球股市易承壓、外資偏保守。"
+                                       "成本上升不利航空、貨運、塑化下游與電子代工毛利;油氣、塑化上游、能源相關受惠。")
+    elif chg20 >= 5:
+        lv, cls, text = "走升", "warn", "油價走升:留意通膨預期回溫與航空、運輸、塑化下游的成本壓力;塑化上游、油氣類股相對有撐。"
+    elif chg20 > -5:
+        lv, cls, text = "平穩", "neutral", "油價區間整理,對大盤影響中性。"
+    elif chg20 > -15:
+        lv, cls, text = "走弱", "bull", ("油價走弱:成本壓力下降,有利航空、運輸、塑化下游;"
+                                       "但若同時出現景氣轉弱的新聞,代表需求疑慮,對大盤不一定是利多。")
+    else:
+        lv, cls, text = "重挫", "warn", ("油價一個月重挫逾 15%:多半反映全球需求衰退疑慮或供給大增,"
+                                       "留意景氣循環股與原物料股承壓;通膨降溫對資金面則偏正面。")
+    warn = f"單日{'大漲' if chg1 > 0 else '大跌'} {abs(chg1):.1f}%,隔天台股相關類股(航空、塑化、油電燃氣)容易跟著反應。" \
+        if chg1 is not None and abs(chg1) >= 4 else None
+    return {"level": lv, "cls": cls, "text": text, "warn": warn}
+
+
+def oil_summary(oil: dict | None) -> dict | None:
+    """原油價格與 1/5/20 日漲跌。以布蘭特為判讀基準(國際油價的主要指標),沒有時改用 WTI。"""
+    items = []
+    for key, name, sym in OIL:
+        bars = (oil or {}).get(key) or []
+        if len(bars) < 2:
+            continue
+        c = [b["close"] for b in bars]
+        items.append({"key": key, "name": name, "symbol": sym, "date": bars[-1]["date"], "close": c[-1],
+                      "chg1": _chg(c, 1), "chg5": _chg(c, 5), "chg20": _chg(c, 20),
+                      "high52": r(max(c[-250:])), "low52": r(min(c[-250:])),
+                      "series": [{"date": b["date"], "v": b["close"]} for b in bars[-120:]]})
+    if not items:
+        return None
+    base = next((x for x in items if x["key"] == "brent"), items[0])
+    return {"items": items, "base": base["name"], "impact": oil_impact(base["chg20"], base["chg1"])}
+
+
 # ---------------------------------------------------------------- 題材(新聞)
 
 THEMES = ["AI", "CPO", "矽光子", "機器人", "伺服器", "散熱", "PCB", "ABF", "載板", "記憶體", "HBM", "先進封裝",
@@ -902,6 +951,7 @@ def build_zone(ctx, names, idx_bars):
     counts = {k: sum(1 for x in rows if x["status"] == k) for k in STATUS_ORDER}
     return {
         "sentiment": senti,
+        "oil": oil_summary(sz.get("oil")),
         "rows": rows,
         "counts": counts,
         "status_label": STATUS_LABEL,

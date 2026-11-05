@@ -7,7 +7,8 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;800&display=swap">
+<!-- 字型以非阻塞方式載入:外部樣式表卡住時會連帶擋住後面的 script,整頁停在「載入中」 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;800&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,6 +22,7 @@
       <a href="#stock" data-view="stock">個股分析</a>
       <a href="#radar" data-view="radar">選股雷達</a>
       <a href="#surge" data-view="surge">飆股專區</a>
+      <a href="#quality" data-view="quality">績優股池</a>
       <a href="#portfolio" data-view="portfolio">持股管理</a>
       <a href="#guide" data-view="guide">使用說明</a>
     </nav>
@@ -34,7 +36,8 @@
 <footer class="foot wrap">
   本網站為公開資料(臺灣證券交易所、Yahoo Finance、新聞 RSS)之機械式整理與分析,所有評分、訊號與價位僅供參考,不構成投資建議,投資盈虧請自負。
 </footer>
-<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<!-- 圖表函式庫放在網站內:外部 CDN 卡住時同步載入的 script 會擋住 app.js,整頁停在「載入中」 -->
+<script src="vendor/lightweight-charts.standalone.production.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

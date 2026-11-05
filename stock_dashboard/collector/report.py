@@ -16,8 +16,11 @@ def write_single_file(site_dir: Path, dash: dict) -> Path:
     page = (site_dir / "index.html").read_text(encoding="utf-8")
     css = (site_dir / "style.css").read_text(encoding="utf-8")
     js = (site_dir / "app.js").read_text(encoding="utf-8")
+    lib_name = "vendor/lightweight-charts.standalone.production.js"
+    lib = (site_dir / lib_name).read_text(encoding="utf-8").replace("</", "<\\/")
     data = json.dumps(dash, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     page = page.replace('<link rel="stylesheet" href="style.css">', f"<style>\n{css}\n</style>")
+    page = page.replace(f'<script src="{lib_name}"></script>', f"<script>\n{lib}\n</script>")
     page = page.replace('<script src="app.js"></script>',
                         f"<script>window.__DASHBOARD__={data};</script>\n<script>\n{js}\n</script>")
     out = site_dir / "report.html"
