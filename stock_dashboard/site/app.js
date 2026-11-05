@@ -466,13 +466,16 @@
     const S = Z.sentiment, L = Z.status_label;
     const EX = Z.excluded || ["failed"], VR = Z.vol_rule || { lu: 0, day: 0 };
     const ok = (x) => !EX.includes(x.status);
-    const rows = Z.rows.filter((x) => surgeTab === "all" ? ok(x) : x.status === surgeTab);
+    const isPool = surgeTab === "pool";
+    const rows = Z.rows.filter((x) => surgeTab === "all" ? ok(x) : isPool ? !!x.pool : x.status === surgeTab);
+    if (isPool) rows.sort((a, b) => (b.signal - a.signal) || (EX.includes(a.status) - EX.includes(b.status)) || (a.pool.days_left - b.pool.days_left));
     const volCell = (v, min) => v == null ? "—" : `<span class="${v < min ? "vol-bad" : ""}">${int(v)}</span>`;
     const maCell = (x) => !x.mas || x.mas.every((m) => m.ok == null) ? "—"
       : x.ma_over && x.ma_over.length ? `<span class="vol-bad">${x.mas.filter((m) => m.ok === false).map((m) => esc(m.label) + " " + pct(m.dist, 1).replace(/<[^>]+>/g, "")).join("<br>")}</span>`
       : '<span class="up">全部站上</span>';
     if (!surgeSel || !Z.rows.find((x) => x.code === surgeSel)) surgeSel = (rows[0] || Z.rows[0] || {}).code;
-    const tabs = [["all", "可操作名單", Z.rows.filter(ok).length]].concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
+    const tabs = [["all", "可操作名單", Z.rows.filter(ok).length]]
+      .concat(Z.pool ? [["pool", `追蹤池(${Z.pool_days} 天)`, Z.rows.filter((x) => x.pool).length]] : []).concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
     $app.innerHTML = `
     ${S ? `<section class="panel regime senti">
       <div><div class="label">市場溫度計 ・ 恐慌 vs 貪婪</div>
@@ -503,9 +506,19 @@
     <section class="panel">
       <div class="ph"><span>連續跳空漲停清單 <small>近 20 個交易日、全體上市股票(掃描 ${Z.scanned} 檔漲停股)・量能門檻:漲停日均量 ≥ ${int(VR.lu)} 張、平日均量 ≥ ${int(VR.day)} 張${VR.base ? `、起漲前量中位數 ≥ ${int(VR.base)} 張` : ""}${Z.ma_rule ? "・須站上季線/半年線/年線/20月線/60月線" : ""}</small></span>${Z.ai ? chip("題材由 Claude AI 判讀", "ai") : chip("題材為關鍵字標籤", "neutral")}</div>
       <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-st="${k}" class="${surgeTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
-      ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th title="收盤是否站上季線/半年線/年線(日線與月K都看)與月K的 20 月線、60 月線;紅字 = 還差幾 %">大均線</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
-      ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
+      ${isPool ? `<p class="muted" style="font-size:12.5px;margin:10px 0 0">入選過的強勢股保留 ${Z.pool_days} 天(從型態完成日起算),每天重新判斷:回到缺口買點、整理後再創新高、或中線回檔到季線附近時標示「到達買點」。不追當下,等回測。</p>` : ""}
+      ${isPool && rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">進場</th><th class="l">目前狀態</th><th>入池日</th><th>剩餘</th><th>入池價</th><th>現價</th><th>入池以來</th><th>買點區</th><th>停損</th><th>距買點</th><th>續航分</th></tr></thead><tbody>
+      ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span></td>
+        <td class="l">${x.signal ? chip("到達買點", "bull2") : EX.includes(x.status) ? chip("暫停", "neutral") : '<span class="muted">等待回測</span>'}</td>
         <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}</td>
+        <td>${esc(x.pool.added.slice(5))}</td><td>${x.pool.days_left} 天</td><td>${fmt(x.pool.add_close)}</td><td>${fmt(x.close)}</td><td>${pct(x.pool.chg, 1)}</td>
+        <td>${EX.includes(x.status) ? "—" : fmt(x.plan.entry_lo) + "~" + fmt(x.plan.entry_hi)}</td><td>${EX.includes(x.status) ? "—" : fmt(x.plan.stop)}</td>
+        <td>${EX.includes(x.status) ? "—" : pct((x.close / x.plan.entry_hi - 1) * 100, 1)}</td>
+        <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td></tr>`).join("")}
+      </tbody></table></div>`
+      : rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">狀態</th><th>續航分</th><th>收盤</th><th>漲跌</th><th>連板/缺口</th><th title="漲停日平均成交量,門檻 ${int(VR.lu)} 張">漲停均量</th><th title="近 20 日非漲停日平均成交量,門檻 ${int(VR.day)} 張">平日均量</th><th title="收盤是否站上季線/半年線/年線(日線)與月K的 20 月線、60 月線;紅字 = 還差幾 %">大均線</th><th>起漲以來</th><th>距缺口</th><th>融資變化</th><th>法人(張)</th><th class="l">題材</th></tr></thead><tbody>
+      ${rows.map((x) => `<tr class="click${x.code === surgeSel ? " sel" : ""}" data-sv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span>${x.alert ? ` ${chip(x.alert, x.alert === "處置" ? "alert" : "warn")}` : ""}</td>
+        <td class="l">${chip(L[x.status], SURGE_CHIP[x.status])}${x.signal && !EX.includes(x.status) ? " " + chip("到達買點", "bull2") : ""}${x.pool && x.days_since > 20 ? ` <small class="muted" title="入池 ${esc(x.pool.added)},剩 ${x.pool.days_left} 天">追蹤中</small>` : ""}</td>
         <td><span class="scorebar"><b>${fmt(x.score, 0)}</b><span><i style="width:${x.score}%"></i></span></span></td>
         <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${x.consec} / ${x.gaps}</td><td>${volCell(x.lu_vol, VR.lu)}</td><td>${volCell(x.day_vol, VR.day)}</td><td>${maCell(x)}</td><td>${pct(x.total_gain, 1)}</td><td>${pct(x.dist_gap, 1)}</td>
         <td>${x.margin_chg == null ? "—" : pct(x.margin_chg, 0)}</td><td>${signed((x.foreign ?? 0) + (x.trust ?? 0))}</td>
@@ -521,8 +534,9 @@
         <li class="bull"><span><b>缺口是生命線</b>:回測缺口不補 = 型態成立;缺口被完全回補 = 型態失敗,立刻出場。</span></li>
         <li class="bull"><span><b>買點</b>:不追連板,等「開板後量縮、回測缺口不破」或「整理後帶量再創新高」。</span></li>
         <li class="bull"><span><b>低基期優先</b>:起漲前位於一年區間低檔的續航力較好;高檔連板容易是末升段。</span></li>
+        <li class="info"><span><b>追蹤池</b>:強勢股不買在當下,一律等回測。入選過的股票自動保留 ${Z.pool_days || 90} 天,每天重新判斷是否回到買點,到了就標示「到達買點」。</span></li>
         <li class="bull"><span><b>長線回檔・中線買點</b>:短線缺口被回補(短線客出場),但月 K 仍是強勢多頭(3>6>12>20 月均線多頭排列、年線 3 個月上揚 ≥ 20%),股價自高點回檔 ≥ 15% 且守住所有大均線 → 不是型態失敗,而是長線多頭的回檔。以季線為支撐分批布局、跌破季線 5% 停損,目標前高,持有週期以週~月計。</span></li>
-        <li class="bear"><span><b>大均線壓力</b>:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線與月 K 3/6/12 月均線),以及月 K 的 20 月線、60 月線(五年線)。日線再漂亮,月線圖上方壓著大均線 = 空頭格局裡的反彈,套牢賣壓重、隨時拉回,直接剔除。</span></li>
+        <li class="bear"><span><b>大均線壓力</b>:收盤必須站上季線、半年線、年線(日線 60/120/240 日均線),以及月 K 的 20 月線、60 月線(五年線)。日線再漂亮,月線圖上方壓著大均線 = 空頭格局裡的反彈,套牢賣壓重、隨時拉回,直接剔除。</span></li>
         <li class="bear"><span><b>量能門檻</b>:漲停日平均量至少 ${int(VR.lu)} 張、平日(非漲停日)平均量至少 ${int(VR.day)} 張${VR.base ? `,起漲前 60 日成交量中位數至少 ${int(VR.base)} 張(平常沒人交易、只有漲停才爆量的冷門股)` : ""};量太小的股票進出困難、容易被少數人拉抬,直接剔除。</span></li>
         <li class="bear"><span><b>融資暴增要小心</b>:連板期間融資大增 = 散戶追價,後續容易震盪。</span></li>
         <li class="info"><span><b>看大盤溫度</b>:市場越恐慌,能逆勢鎖漲停的股票越珍貴;極度貪婪時降低部位。</span></li>
@@ -561,7 +575,9 @@
         <div><div class="stock-title">${esc(x.name)}<span class="cd">${esc(x.code)}${x.industry ? " ・ " + esc(x.industry) : ""}</span></div>
           <div class="row" style="margin-top:6px">${chip(L[x.status], SURGE_CHIP[x.status])}${x.alert ? chip(x.alert + "股", x.alert === "處置" ? "alert" : "warn") : ""}
             <span class="muted">續航分 <b class="num" style="color:var(--ink)">${fmt(x.score, 0)}</b> / 100</span>
-            <span class="muted">起漲 ${esc(x.start)} ・ 型態結束 ${esc(x.end)}${x.days_since ? `(${x.days_since} 個交易日前)` : "(今天)"}</span></div></div>
+            <span class="muted">起漲 ${esc(x.start)} ・ 型態結束 ${esc(x.end)}${x.days_since ? `(${x.days_since} 個交易日前)` : "(今天)"}</span>
+            ${x.signal && !(D.surge.excluded || []).includes(x.status) ? chip("到達買點", "bull2") : ""}
+            ${x.pool ? `<span class="muted">追蹤池:${esc(x.pool.added)} 入池 @ ${fmt(x.pool.add_close)}(${pct(x.pool.chg, 1)}),剩 ${x.pool.days_left} 天</span>` : ""}</div></div>
         <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
       </div>
       ${x.ai ? `<p class="view ai-note" style="margin-top:12px">${chip(x.ai.quality || "AI", x.ai.quality === "實質題材" ? "bull" : x.ai.quality === "概念炒作" ? "warn" : "neutral")} <b>${esc(x.ai.theme)}</b> — ${esc(x.ai.note)}</p>` : ""}
