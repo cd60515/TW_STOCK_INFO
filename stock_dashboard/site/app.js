@@ -693,7 +693,7 @@
     const dist = (x, n) => { const s = (x.supports || []).find((v) => v.days === n); return s ? `<span class="${Math.abs(s.dist) <= R.near ? "up" : ""}">${s.dist > 0 ? "+" : ""}${fmt(s.dist, 1)}%</span>` : "—"; };
     $app.innerHTML = `
     <section class="panel">
-      <div class="ph"><span>績優股池 <small>EPS ${esc(Q.period || "")}累計排名前 ${R.top_n} 名・入池後保留 ${R.hold_days} 天・股價拉回到季線/半年線/年線支撐就是買點</small></span></div>
+      <div class="ph"><span>績優股池 <small>近四季 EPS 排名前 ${R.top_n} 名(收盤價 ÷ 本益比)・入池後保留 ${R.hold_days} 天・股價拉回到季線/半年線/年線支撐就是買點</small></span></div>
       <div class="radar-tabs seg">${tabs.map(([k, l, n]) => `<button type="button" data-qt="${k}" class="${qualTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
       ${rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th>EPS 排名</th><th>EPS</th><th class="l">狀態</th><th>收盤</th><th>漲跌</th><th title="距離 52 週高點">距高點</th><th>距季線</th><th>距半年線</th><th>距年線</th><th>買點區</th><th>停損</th><th>本益比</th><th>殖利率</th><th>剩餘</th></tr></thead><tbody>
       ${rows.map((x) => `<tr class="click${x.code === qualSel ? " sel" : ""}" data-qv="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span></td>
@@ -707,12 +707,12 @@
     </section>
     <section class="panel" id="qualDetail"></section>
     <section class="panel"><h2>選股邏輯與紀律</h2><ul class="sig">
-      <li class="bull"><span><b>入池</b>:最新一季財報的累計 EPS(基本每股盈餘)排名前 ${R.top_n} 名的上市公司。每季財報公布後重新排名,新進榜的加入;掉出排名的不會被移除,保留到期滿。</span></li>
+      <li class="bull"><span><b>入池</b>:近四季 EPS 排名前 ${R.top_n} 名的上市公司。EPS = 收盤價 ÷ 證交所本益比(本益比以近四季 EPS 計算),每天涵蓋全體上市股;新財報公布後排名自然更新,新進榜的加入,掉出排名的不會被移除,保留到期滿。</span></li>
       <li class="info"><span><b>保留一年</b>:入池後保留 ${R.hold_days} 天,期滿時若仍在排名內,會自動重新入池。</span></li>
       <li class="bull"><span><b>回檔到支撐(買點)</b>:自 52 週高點回檔 ≥ ${R.pullback}%,且股價回到季線、半年線或年線 ±${R.near}% 以內。賺錢的公司不追高,等拉回。</span></li>
       <li class="bull"><span><b>深度回檔</b>:回檔 ≥ ${R.deep}% 但仍守住年線,可分批布局。</span></li>
       <li class="bear"><span><b>跌破年線</b>:收盤低於年線 ${R.break}% 以上,長線趨勢轉弱,先觀望、不急著接。停損參考年線下方 ${R.stop}%。</span></li>
-      <li class="info"><span><b>EPS 高不等於便宜</b>:同時看本益比與殖利率;EPS 是累計值,要留意是否含一次性業外收益。</span></li>
+      <li class="info"><span><b>EPS 高不等於便宜</b>:同時看本益比與殖利率,並留意近四季獲利是否含一次性業外收益。</span></li>
     </ul></section>`;
     $app.querySelectorAll("[data-qt]").forEach((b) => b.addEventListener("click", () => { qualTab = b.getAttribute("data-qt"); store.set("qualTab", qualTab); qualSel = null; destroyCharts(); viewQuality(); }));
     $app.querySelectorAll("[data-qv]").forEach((tr) => tr.addEventListener("click", () => {
@@ -735,7 +735,7 @@
       <div class="stock-head">
         <div><div class="stock-title">${esc(x.name)}<span class="cd">${esc(x.code)}${x.industry ? " ・ " + esc(x.industry) : ""}</span></div>
           <div class="row" style="margin-top:6px">${chip(L[x.status], QUAL_CHIP[x.status])}${x.signal ? chip("到達買點", "bull2") : ""}
-            <span class="muted">EPS ${esc(x.period || "")} <b class="num" style="color:var(--ink)">${fmt(x.eps)}</b> 元(第 ${x.rank ?? "—"} 名${x.in_rank ? "" : ",已掉出排名"})</span>
+            <span class="muted">近四季 EPS <b class="num" style="color:var(--ink)">${fmt(x.eps)}</b> 元(第 ${x.rank ?? "—"} 名${x.in_rank ? "" : ",已掉出排名"})</span>
             <span class="muted">${esc(x.added)} 入池${x.add_close ? ` @ ${fmt(x.add_close)}(${pct(x.since_add, 1)})` : ""},剩 ${x.days_left} 天</span></div></div>
         <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
       </div>

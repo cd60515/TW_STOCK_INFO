@@ -255,20 +255,15 @@ def collect_live(root: Path, watchlist: list[dict]):
     alerts = S.twse_alerts(http)
     S.log(f"[info] 飆股候選 {len(cands)} 檔(含追蹤池 {len(pooled)} 檔;日線 {len(surge_bars)} 檔)、VIX {len(vix or [])} 筆、注意/處置 {len(alerts)} 檔")
 
-    # 績優股池:EPS 排名前段班入池保留一年;財報一季才變一次,抓不到就沿用上次的排名
-    eps = S.eps_latest(http)
-    if eps:
-        _save(state / "eps.json", eps)
-    else:
-        eps = _load(state / "eps.json", {})
+    # 績優股池:近四季 EPS(收盤價 ÷ 本益比)排名前段班入池保留一年
     q_pool = Q.pool_active(_load(state / "quality_pool.json", {}), now.strftime("%Y-%m-%d"))
-    ranked, period = Q.rank_eps(eps)
+    ranked, _ = Q.rank_eps(extra.get("valuation"), daily[-1][1]["px"], names)
     q_bars = {}
     for c in dict.fromkeys(list(q_pool) + [x["code"] for x in ranked]):
         b = S.yahoo_chart(http, c + ".TW")
         if b:
             q_bars[c] = b
-    S.log(f"[info] 績優股池:EPS {len(eps)} 家({period})、池內 {len(q_pool)} 檔、日線 {len(q_bars)} 檔")
+    S.log(f"[info] 績優股池:EPS 排名 {len(ranked)} 檔、池內 {len(q_pool)} 檔、日線 {len(q_bars)} 檔")
 
     S.log(f"[info] 收集完成,TWSE 請求 {http.twse_calls} 次")
     return {
@@ -285,6 +280,6 @@ def collect_live(root: Path, watchlist: list[dict]):
         "news": news,
         "market_news": market_news,
         "surge": {"candidates": cands, "pool": pool, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "oil": oil, "alerts": alerts},
-        "quality": {"eps": eps, "pool": q_pool, "bars": q_bars},
+        "quality": {"pool": q_pool, "bars": q_bars},
         "data_complete": "margin" in latest_idx and "t86" in latest_idx,
     }

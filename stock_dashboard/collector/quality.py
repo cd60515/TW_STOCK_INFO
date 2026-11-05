@@ -1,8 +1,9 @@
 """績優股池:EPS 排名前段班的上市公司,入選後保留一年,等股價拉回長期均線支撐時找買點。
 
 邏輯(規則全部透明):
-  1. 入池:最新一季綜合損益表的累計 EPS(基本每股盈餘)排名前 TOP_N 名。
-     每一季財報公布後重新排名,新進榜的公司加入;已在池中的公司不因掉出排名而移除。
+  1. 入池:近四季 EPS 排名前 TOP_N 名。EPS = 收盤價 ÷ 本益比(證交所本益比 = 收盤價 ÷ 近四季 EPS),
+     每天涵蓋全體上市股,不受財報申報期(各公司陸續申報)影響,也沒有季節累計的落差。
+     新財報公布後排名自然更新,新進榜的公司加入;已在池中的公司不因掉出排名而移除。
   2. 保留:入池後保留 HOLD_DAYS 天。到期時若仍在排名內,會以新的入池日重新加入。
   3. 買點:賺錢的公司不追高,等拉回。股價自 52 週高點回檔 ≥ PULLBACK_MIN %,
      且回到季線、半年線或年線(日線 60/120/240 日均線)±NEAR % 以內 = 回檔到支撐(買點)。
@@ -35,16 +36,19 @@ STATUS_LABEL = {"buy": "回檔到支撐", "deep": "深度回檔", "pullback": "�
 STATUS_ORDER = ["buy", "deep", "pullback", "high", "broken"]
 
 
-def rank_eps(eps: dict | None) -> tuple[list[dict], str | None]:
-    """取最多公司採用的財報期別(避免混到晚公布的舊一季),依 EPS 由高到低排名前 TOP_N。"""
-    rows = [dict(v, code=c) for c, v in (eps or {}).items() if is_common(c)]
+def rank_eps(valuation: dict, px: dict, names: dict) -> tuple[list[dict], str | None]:
+    """近四季 EPS(收盤價 ÷ 本益比)由高到低排名前 TOP_N。虧損股沒有本益比,自然排除。"""
+    rows = []
+    for c, v in (valuation or {}).items():
+        pe, close = v.get("pe"), (px.get(c) or {}).get("close")
+        if is_common(c) and pe and pe > 0 and close:
+            rows.append({"code": c, "name": names.get(c, c), "eps": round(close / pe, 2)})
     if not rows:
         return [], None
-    period = Counter((x["year"], x["q"]) for x in rows).most_common(1)[0][0]
-    rows = sorted((x for x in rows if (x["year"], x["q"]) == period), key=lambda x: -x["eps"])[:TOP_N]
+    rows = sorted(rows, key=lambda x: -x["eps"])[:TOP_N]
     for i, x in enumerate(rows, 1):
         x["rank"] = i
-    return rows, f"{period[0]} 年第 {period[1]} 季"
+    return rows, "近四季"
 
 
 def pool_active(pool: dict, today: str) -> dict:
@@ -144,7 +148,7 @@ def build_zone(ctx) -> dict | None:
     daily = ctx["daily"]
     today, latest = daily[-1]
     px = latest.get("px") or {}
-    ranked, period = rank_eps(q.get("eps"))
+    ranked, period = rank_eps(ctx.get("valuation"), px, ctx.get("names") or {})
     pool = update_pool(pool_active(q.get("pool") or {}, today), ranked, period, today, px)
     dates = [d for d, _ in daily][-CHART_DAYS:]
     if q.get("bars"):  # 日期軸以日線最長的一檔為準(快照只保留 45 天)

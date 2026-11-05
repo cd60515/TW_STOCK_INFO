@@ -382,40 +382,6 @@ def monthly_revenue(http: Http):
     return out or None
 
 
-# 綜合損益表依產業格式分開發布:一般業、銀行業、證券業、金控業、保險業、異業
-EPS_FORMATS = ("ci", "basi", "bd", "fh", "ins", "mim")
-
-
-def eps_latest(http: Http):
-    """上市公司最新一季綜合損益表(openapi)的基本每股盈餘 -> {code: {name, eps, year, q}}。
-    EPS 是當年度累計值(例如第 3 季 = 前三季合計),欄位名稱用關鍵字比對,不假設順序。"""
-
-    def pick(row, *kw):
-        for k, v in row.items():
-            if all(x in k for x in kw):
-                return v
-        return None
-
-    out = {}
-    for fmt in EPS_FORMATS:
-        data = http.json(f"https://openapi.twse.com.tw/v1/opendata/t187ap06_L_{fmt}", timeout=40)
-        if not isinstance(data, list):
-            log(f"[warn] 綜合損益表({fmt})無資料")
-            continue
-        n = 0
-        for row in data:
-            code = str(pick(row, "公司代號") or "").strip()
-            eps = to_float(pick(row, "每股盈餘"))
-            if not code or eps is None:
-                continue
-            out[code] = {"name": str(pick(row, "公司名稱") or "").strip(), "eps": eps,
-                         "year": str(pick(row, "年度") or "").strip(), "q": str(pick(row, "季別") or "").strip()}
-            n += 1
-        if data and not n:
-            log(f"[warn] 綜合損益表({fmt})解析不到 EPS: fields={list(data[0])[:12]}")
-    return out or None
-
-
 INDUSTRY_CODE_NAMES = {
     "01": "水泥", "02": "食品", "03": "塑膠", "04": "紡織纖維", "05": "電機機械", "06": "電器電纜",
     "08": "玻璃陶瓷", "09": "造紙", "10": "鋼鐵", "11": "橡膠", "12": "汽車", "13": "電子",

@@ -126,9 +126,6 @@ def collect_demo(watchlist):
         oil[key] = _walk(random.Random(start), 250, start, 0.0004, 0.018)
         for b, d in zip(oil[key], dates[-250:]):
             b["date"] = d
-    # 績優股池示範:自選股給較高 EPS(有完整日線),其餘虛擬股票隨機
-    eps = {c: {"name": nm, "eps": round(rng.uniform(8, 45) if c in prices else rng.uniform(-2, 12), 2), "year": "115", "q": "3"}
-           for c, nm in universe.items()}
     cands = find_candidates(daily)
     surge_news = {c: [{"title": "【示範】" + rng.choice(HEADLINES_POS).format(n=universe[c]), "source": "示範新聞", "link": "#",
                        "time": datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M")}] for c in cands}
@@ -136,7 +133,7 @@ def collect_demo(watchlist):
              "news": surge_news, "vix": vix, "oil": oil, "alerts": {"6106": "注意"}}
     return {
         "surge": surge,
-        "quality": {"eps": eps, "pool": {}, "bars": {c: prices[c] for c in prices}},
+        "quality": {"pool": {}, "bars": {c: prices[c] for c in prices}},
         "demo": True,
         "generated_at": datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M"),
         "index_bars": index_bars, "daily": daily, "prices": prices,
