@@ -5,12 +5,25 @@
   "add_period": "近四季",
   "add_rank": 82,
   "added": "2026-11-05",
-  "eps": 15.57,
+  "eps": 15.33,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "鮮活果汁-KY",
   "period": "近四季",
-  "rank": 82
+  "rank": 80
+ },
+ "1419": {
+  "add_close": 63.4,
+  "add_eps": 13.84,
+  "add_period": "近四季",
+  "add_rank": 99,
+  "added": "2026-11-06",
+  "eps": 13.84,
+  "expires": "2027-11-06",
+  "in_rank": true,
+  "name": "新紡",
+  "period": "近四季",
+  "rank": 99
  },
  "1476": {
   "add_close": 339.5,
@@ -18,12 +31,12 @@
   "add_period": "近四季",
   "add_rank": 50,
   "added": "2026-11-05",
-  "eps": 24.15,
+  "eps": 24.64,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "儒鴻",
   "period": "近四季",
-  "rank": 50
+  "rank": 47
  },
  "1477": {
   "add_close": 214.5,
@@ -31,12 +44,12 @@
   "add_period": "近四季",
   "add_rank": 88,
   "added": "2026-11-05",
-  "eps": 15.15,
+  "eps": 15.04,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "聚陽",
   "period": "近四季",
-  "rank": 88
+  "rank": 81
  },
  "1519": {
   "add_close": 493.5,
@@ -44,12 +57,12 @@
   "add_period": "近四季",
   "add_rank": 85,
   "added": "2026-11-05",
-  "eps": 15.28,
+  "eps": 13.99,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "華城",
   "period": "近四季",
-  "rank": 85
+  "rank": 95
  },
  "1590": {
   "add_close": 1050.0,
@@ -57,12 +70,12 @@
   "add_period": "近四季",
   "add_rank": 22,
   "added": "2026-11-05",
-  "eps": 52.06,
+  "eps": 50.07,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "亞德客-KY",
   "period": "近四季",
-  "rank": 22
+  "rank": 21
  },
  "1795": {
   "add_close": 168.0,
@@ -70,12 +83,12 @@
   "add_period": "近四季",
   "add_rank": 100,
   "added": "2026-11-05",
-  "eps": 14.15,
+  "eps": 13.98,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "美時",
   "period": "近四季",
-  "rank": 100
+  "rank": 96
  },
  "2059": {
   "add_close": 7995.0,
@@ -83,12 +96,12 @@
   "add_period": "近四季",
   "add_rank": 2,
   "added": "2026-11-05",
-  "eps": 181.37,
+  "eps": 171.62,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "川湖",
   "period": "近四季",
-  "rank": 2
+  "rank": 3
  },
  "2072": {
   "add_close": 111.5,
@@ -96,12 +109,12 @@
   "add_period": "近四季",
   "add_rank": 93,
   "added": "2026-11-05",
-  "eps": 14.77,
+  "eps": 14.11,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "世紀能源",
   "period": "近四季",
-  "rank": 93
+  "rank": 92
  },
  "2207": {
   "add_close": 537.0,
@@ -109,12 +122,25 @@
   "add_period": "近四季",
   "add_rank": 30,
   "added": "2026-11-05",
-  "eps": 40.65,
+  "eps": 39.97,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "和泰車",
   "period": "近四季",
-  "rank": 30
+  "rank": 27
+ },
+ "2247": {
+  "add_close": 218.0,
+  "add_eps": 14.06,
+  "add_period": "近四季",
+  "add_rank": 93,
+  "added": "2026-11-06",
+  "eps": 14.06,
+  "expires": "2027-11-06",
+  "in_rank": true,
+  "name": "汎德永業",
+  "period": "近四季",
+  "rank": 93
  },
  "2308": {
   "add_close": 1130.0,
@@ -122,12 +148,12 @@
   "add_period": "近四季",
   "add_rank": 39,
   "added": "2026-11-05",
-  "eps": 33.3,
+  "eps": 31.09,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "台達電",
   "period": "近四季",
-  "rank": 39
+  "rank": 40
  },
  "2316": {
   "add_close": 107.0,
@@ -137,7 +163,7 @@
   "added": "2026-11-05",
   "eps": 14.3,
   "expires": "2027-11-05",
-  "in_rank": true,
+  "in_rank": false,
   "name": "楠梓電",
   "period": "近四季",
   "rank": 98
@@ -148,12 +174,12 @@
   "add_period": "近四季",
   "add_rank": 86,
   "added": "2026-11-05",
-  "eps": 15.17,
+  "eps": 14.49,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "鴻海",
   "period": "近四季",
-  "rank": 86
+  "rank": 88
  },
  "2327": {
   "add_close": 404.5,
@@ -163,7 +189,7 @@
   "added": "2026-11-05",
   "eps": 14.85,
   "expires": "2027-11-05",
-  "in_rank": true,
+  "in_rank": false,
   "name": "國巨*",
   "period": "近四季",
   "rank": 91
@@ -174,7 +200,7 @@
   "add_period": "近四季",
   "add_rank": 8,
   "added": "2026-11-05",
-  "eps": 86.29,
+  "eps": 82.24,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "台積電",
@@ -187,12 +213,12 @@
   "add_period": "近四季",
   "add_rank": 83,
   "added": "2026-11-05",
-  "eps": 15.51,
+  "eps": 14.66,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "華邦電",
   "period": "近四季",
-  "rank": 83
+  "rank": 87
  },
  "2345": {
   "add_close": 1380.0,
@@ -200,12 +226,12 @@
   "add_period": "近四季",
   "add_rank": 15,
   "added": "2026-11-05",
-  "eps": 63.65,
+  "eps": 59.04,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "智邦",
   "period": "近四季",
-  "rank": 15
+  "rank": 16
  },
  "2357": {
   "add_close": 867.0,
@@ -213,12 +239,12 @@
   "add_period": "近四季",
   "add_rank": 12,
   "added": "2026-11-05",
-  "eps": 68.38,
+  "eps": 67.74,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "華碩",
   "period": "近四季",
-  "rank": 12
+  "rank": 11
  },
  "2360": {
   "add_close": 1335.0,
@@ -226,12 +252,12 @@
   "add_period": "近四季",
   "add_rank": 33,
   "added": "2026-11-05",
-  "eps": 39.2,
+  "eps": 35.38,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "致茂",
   "period": "近四季",
-  "rank": 33
+  "rank": 34
  },
  "2368": {
   "add_close": 868.0,
@@ -239,12 +265,12 @@
   "add_period": "近四季",
   "add_rank": 43,
   "added": "2026-11-05",
-  "eps": 27.86,
+  "eps": 26.09,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "金像電",
   "period": "近四季",
-  "rank": 43
+  "rank": 45
  },
  "2376": {
   "add_close": 313.0,
@@ -252,7 +278,7 @@
   "add_period": "近四季",
   "add_rank": 46,
   "added": "2026-11-05",
-  "eps": 26.73,
+  "eps": 25.45,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "技嘉",
@@ -265,7 +291,7 @@
   "add_period": "近四季",
   "add_rank": 44,
   "added": "2026-11-05",
-  "eps": 27.58,
+  "eps": 27.12,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "瑞昱",
@@ -278,12 +304,12 @@
   "add_period": "近四季",
   "add_rank": 57,
   "added": "2026-11-05",
-  "eps": 22.95,
+  "eps": 22.23,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "廣達",
   "period": "近四季",
-  "rank": 57
+  "rank": 55
  },
  "2383": {
   "add_close": 4100.0,
@@ -291,12 +317,12 @@
   "add_period": "近四季",
   "add_rank": 6,
   "added": "2026-11-05",
-  "eps": 93.35,
+  "eps": 86.98,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "台光電",
   "period": "近四季",
-  "rank": 6
+  "rank": 7
  },
  "2395": {
   "add_close": 596.0,
@@ -304,12 +330,12 @@
   "add_period": "近四季",
   "add_rank": 64,
   "added": "2026-11-05",
-  "eps": 19.75,
+  "eps": 18.29,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "研華",
   "period": "近四季",
-  "rank": 64
+  "rank": 66
  },
  "2404": {
   "add_close": 956.0,
@@ -317,7 +343,7 @@
   "add_period": "近四季",
   "add_rank": 14,
   "added": "2026-11-05",
-  "eps": 66.3,
+  "eps": 61.44,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "漢唐",
@@ -330,7 +356,7 @@
   "add_period": "近四季",
   "add_rank": 23,
   "added": "2026-11-05",
-  "eps": 50.7,
+  "eps": 48.38,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "南亞科",
@@ -343,7 +369,7 @@
   "add_period": "近四季",
   "add_rank": 19,
   "added": "2026-11-05",
-  "eps": 57.45,
+  "eps": 55.76,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "創見",
@@ -356,12 +382,12 @@
   "add_period": "近四季",
   "add_rank": 17,
   "added": "2026-11-05",
-  "eps": 60.55,
+  "eps": 59.33,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "聯發科",
   "period": "近四季",
-  "rank": 17
+  "rank": 15
  },
  "2474": {
   "add_close": 186.5,
@@ -369,12 +395,12 @@
   "add_period": "近四季",
   "add_rank": 89,
   "added": "2026-11-05",
-  "eps": 15.03,
+  "eps": 14.79,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "可成",
   "period": "近四季",
-  "rank": 89
+  "rank": 86
  },
  "2491": {
   "add_close": 35.3,
@@ -382,12 +408,12 @@
   "add_period": "近四季",
   "add_rank": 41,
   "added": "2026-11-05",
-  "eps": 32.09,
+  "eps": 32.0,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "吉祥全",
   "period": "近四季",
-  "rank": 41
+  "rank": 37
  },
  "2546": {
   "add_close": 98.5,
@@ -395,12 +421,12 @@
   "add_period": "近四季",
   "add_rank": 90,
   "added": "2026-11-05",
-  "eps": 14.95,
+  "eps": 14.87,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "根基",
   "period": "近四季",
-  "rank": 90
+  "rank": 84
  },
  "2603": {
   "add_close": 259.0,
@@ -408,12 +434,12 @@
   "add_period": "近四季",
   "add_rank": 48,
   "added": "2026-11-05",
-  "eps": 25.22,
+  "eps": 24.0,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "長榮",
   "period": "近四季",
-  "rank": 48
+  "rank": 50
  },
  "2615": {
   "add_close": 113.0,
@@ -421,12 +447,12 @@
   "add_period": "近四季",
   "add_rank": 94,
   "added": "2026-11-05",
-  "eps": 14.56,
+  "eps": 13.85,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "萬海",
   "period": "近四季",
-  "rank": 94
+  "rank": 98
  },
  "2707": {
   "add_close": 174.5,
@@ -434,12 +460,12 @@
   "add_period": "近四季",
   "add_rank": 96,
   "added": "2026-11-05",
-  "eps": 14.45,
+  "eps": 14.36,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "晶華",
   "period": "近四季",
-  "rank": 96
+  "rank": 90
  },
  "2727": {
   "add_close": 243.0,
@@ -447,7 +473,7 @@
   "add_period": "近四季",
   "add_rank": 72,
   "added": "2026-11-05",
-  "eps": 18.0,
+  "eps": 16.67,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "王品",
@@ -460,12 +486,25 @@
   "add_period": "近四季",
   "add_rank": 78,
   "added": "2026-11-05",
-  "eps": 16.25,
+  "eps": 15.96,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "雄獅",
   "period": "近四季",
-  "rank": 78
+  "rank": 77
+ },
+ "2753": {
+  "add_close": 175.5,
+  "add_eps": 13.87,
+  "add_period": "近四季",
+  "add_rank": 97,
+  "added": "2026-11-06",
+  "eps": 13.87,
+  "expires": "2027-11-06",
+  "in_rank": true,
+  "name": "八方雲集",
+  "period": "近四季",
+  "rank": 97
  },
  "2850": {
   "add_close": 164.0,
@@ -473,12 +512,12 @@
   "add_period": "近四季",
   "add_rank": 84,
   "added": "2026-11-05",
-  "eps": 15.37,
+  "eps": 14.81,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "新產",
   "period": "近四季",
-  "rank": 84
+  "rank": 85
  },
  "3006": {
   "add_close": 214.0,
@@ -486,12 +525,12 @@
   "add_period": "近四季",
   "add_rank": 11,
   "added": "2026-11-05",
-  "eps": 71.1,
+  "eps": 68.94,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "晶豪科",
   "period": "近四季",
-  "rank": 11
+  "rank": 10
  },
  "3008": {
   "add_close": 4525.0,
@@ -499,12 +538,12 @@
   "add_period": "近四季",
   "add_rank": 3,
   "added": "2026-11-05",
-  "eps": 173.5,
+  "eps": 171.78,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "大立光",
   "period": "近四季",
-  "rank": 3
+  "rank": 2
  },
  "3017": {
   "add_close": 2565.0,
@@ -512,12 +551,25 @@
   "add_period": "近四季",
   "add_rank": 10,
   "added": "2026-11-05",
-  "eps": 75.02,
+  "eps": 67.56,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "奇鋐",
   "period": "近四季",
-  "rank": 10
+  "rank": 12
+ },
+ "3023": {
+  "add_close": 258.5,
+  "add_eps": 14.2,
+  "add_period": "近四季",
+  "add_rank": 91,
+  "added": "2026-11-06",
+  "eps": 14.2,
+  "expires": "2027-11-06",
+  "in_rank": true,
+  "name": "信邦",
+  "period": "近四季",
+  "rank": 91
  },
  "3034": {
   "add_close": 510.0,
@@ -525,12 +577,12 @@
   "add_period": "近四季",
   "add_rank": 40,
   "added": "2026-11-05",
-  "eps": 32.48,
+  "eps": 31.56,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "聯詠",
   "period": "近四季",
-  "rank": 40
+  "rank": 39
  },
  "3036": {
   "add_close": 195.0,
@@ -538,7 +590,7 @@
   "add_period": "近四季",
   "add_rank": 65,
   "added": "2026-11-05",
-  "eps": 19.48,
+  "eps": 18.53,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "文曄",
@@ -551,12 +603,12 @@
   "add_period": "近四季",
   "add_rank": 66,
   "added": "2026-11-05",
-  "eps": 19.32,
+  "eps": 17.56,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "欣興",
   "period": "近四季",
-  "rank": 66
+  "rank": 70
  },
  "3044": {
   "add_close": 438.5,
@@ -564,12 +616,12 @@
   "add_period": "近四季",
   "add_rank": 55,
   "added": "2026-11-05",
-  "eps": 23.34,
+  "eps": 22.01,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "健鼎",
   "period": "近四季",
-  "rank": 55
+  "rank": 57
  },
  "3130": {
   "add_close": 204.0,
@@ -582,7 +634,7 @@
   "in_rank": true,
   "name": "一零四",
   "period": "近四季",
-  "rank": 75
+  "rank": 73
  },
  "3135": {
   "add_close": 122.0,
@@ -590,12 +642,12 @@
   "add_period": "近四季",
   "add_rank": 56,
   "added": "2026-11-05",
-  "eps": 23.15,
+  "eps": 22.39,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "凌航",
   "period": "近四季",
-  "rank": 56
+  "rank": 54
  },
  "3167": {
   "add_close": 777.0,
@@ -605,7 +657,7 @@
   "added": "2026-11-05",
   "eps": 14.26,
   "expires": "2027-11-05",
-  "in_rank": true,
+  "in_rank": false,
   "name": "大量",
   "period": "近四季",
   "rank": 99
@@ -616,12 +668,12 @@
   "add_period": "近四季",
   "add_rank": 35,
   "added": "2026-11-05",
-  "eps": 36.96,
+  "eps": 36.04,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "玉晶光",
   "period": "近四季",
-  "rank": 35
+  "rank": 32
  },
  "3413": {
   "add_close": 247.0,
@@ -629,12 +681,12 @@
   "add_period": "近四季",
   "add_rank": 62,
   "added": "2026-11-05",
-  "eps": 20.08,
+  "eps": 18.86,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "京鼎",
   "period": "近四季",
-  "rank": 62
+  "rank": 64
  },
  "3443": {
   "add_close": 6405.0,
@@ -642,12 +694,12 @@
   "add_period": "近四季",
   "add_rank": 25,
   "added": "2026-11-05",
-  "eps": 49.5,
+  "eps": 47.96,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "創意",
   "period": "近四季",
-  "rank": 25
+  "rank": 24
  },
  "3515": {
   "add_close": 215.5,
@@ -655,12 +707,12 @@
   "add_period": "近四季",
   "add_rank": 73,
   "added": "2026-11-05",
-  "eps": 17.66,
+  "eps": 16.39,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "華擎",
   "period": "近四季",
-  "rank": 73
+  "rank": 74
  },
  "3533": {
   "add_close": 1660.0,
@@ -668,7 +720,7 @@
   "add_period": "近四季",
   "add_rank": 9,
   "added": "2026-11-05",
-  "eps": 82.02,
+  "eps": 78.31,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "嘉澤",
@@ -681,7 +733,7 @@
   "add_period": "近四季",
   "add_rank": 68,
   "added": "2026-11-05",
-  "eps": 18.65,
+  "eps": 17.79,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "牧德",
@@ -694,12 +746,12 @@
   "add_period": "近四季",
   "add_rank": 77,
   "added": "2026-11-05",
-  "eps": 16.3,
+  "eps": 14.9,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "辛耘",
   "period": "近四季",
-  "rank": 77
+  "rank": 83
  },
  "3592": {
   "add_close": 222.5,
@@ -707,7 +759,7 @@
   "add_period": "近四季",
   "add_rank": 76,
   "added": "2026-11-05",
-  "eps": 16.6,
+  "eps": 16.16,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "瑞鼎",
@@ -720,12 +772,12 @@
   "add_period": "近四季",
   "add_rank": 59,
   "added": "2026-11-05",
-  "eps": 20.87,
+  "eps": 19.98,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "碩天",
   "period": "近四季",
-  "rank": 59
+  "rank": 60
  },
  "3653": {
   "add_close": 5805.0,
@@ -733,12 +785,12 @@
   "add_period": "近四季",
   "add_rank": 27,
   "added": "2026-11-05",
-  "eps": 44.31,
+  "eps": 39.88,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "健策",
   "period": "近四季",
-  "rank": 27
+  "rank": 28
  },
  "3661": {
   "add_close": 2960.0,
@@ -746,7 +798,7 @@
   "add_period": "近四季",
   "add_rank": 13,
   "added": "2026-11-05",
-  "eps": 68.19,
+  "eps": 65.19,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "世芯-KY",
@@ -759,12 +811,12 @@
   "add_period": "近四季",
   "add_rank": 20,
   "added": "2026-11-05",
-  "eps": 54.46,
+  "eps": 49.09,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "貿聯-KY",
   "period": "近四季",
-  "rank": 20
+  "rank": 22
  },
  "3708": {
   "add_close": 91.0,
@@ -772,7 +824,7 @@
   "add_period": "近四季",
   "add_rank": 29,
   "added": "2026-11-05",
-  "eps": 41.36,
+  "eps": 39.41,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "上緯投控",
@@ -790,7 +842,7 @@
   "in_rank": true,
   "name": "振大環球",
   "period": "近四季",
-  "rank": 70
+  "rank": 67
  },
  "4736": {
   "add_close": 125.5,
@@ -798,12 +850,12 @@
   "add_period": "近四季",
   "add_rank": 45,
   "added": "2026-11-05",
-  "eps": 27.28,
+  "eps": 27.39,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "泰博",
   "period": "近四季",
-  "rank": 45
+  "rank": 43
  },
  "4766": {
   "add_close": 349.0,
@@ -811,12 +863,12 @@
   "add_period": "近四季",
   "add_rank": 54,
   "added": "2026-11-05",
-  "eps": 23.44,
+  "eps": 22.8,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "南寶",
   "period": "近四季",
-  "rank": 54
+  "rank": 52
  },
  "4771": {
   "add_close": 202.5,
@@ -824,12 +876,12 @@
   "add_period": "近四季",
   "add_rank": 87,
   "added": "2026-11-05",
-  "eps": 15.17,
+  "eps": 14.98,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "望隼",
   "period": "近四季",
-  "rank": 87
+  "rank": 82
  },
  "4967": {
   "add_close": 261.5,
@@ -837,12 +889,12 @@
   "add_period": "近四季",
   "add_rank": 7,
   "added": "2026-11-05",
-  "eps": 92.73,
+  "eps": 95.04,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "十銓",
   "period": "近四季",
-  "rank": 7
+  "rank": 4
  },
  "5269": {
   "add_close": 1220.0,
@@ -850,12 +902,12 @@
   "add_period": "近四季",
   "add_rank": 5,
   "added": "2026-11-05",
-  "eps": 93.77,
+  "eps": 89.16,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "祥碩",
   "period": "近四季",
-  "rank": 5
+  "rank": 6
  },
  "5284": {
   "add_close": 211.0,
@@ -863,12 +915,12 @@
   "add_period": "近四季",
   "add_rank": 80,
   "added": "2026-11-05",
-  "eps": 15.79,
+  "eps": 14.48,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "jpp-KY",
   "period": "近四季",
-  "rank": 80
+  "rank": 89
  },
  "5288": {
   "add_close": 171.0,
@@ -876,12 +928,12 @@
   "add_period": "近四季",
   "add_rank": 81,
   "added": "2026-11-05",
-  "eps": 15.7,
+  "eps": 15.52,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "豐祥-KY",
   "period": "近四季",
-  "rank": 81
+  "rank": 79
  },
  "5434": {
   "add_close": 484.0,
@@ -889,7 +941,7 @@
   "add_period": "近四季",
   "add_rank": 42,
   "added": "2026-11-05",
-  "eps": 31.43,
+  "eps": 29.68,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "崇越",
@@ -902,12 +954,12 @@
   "add_period": "近四季",
   "add_rank": 24,
   "added": "2026-11-05",
-  "eps": 49.65,
+  "eps": 46.85,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "亞翔",
   "period": "近四季",
-  "rank": 24
+  "rank": 25
  },
  "6196": {
   "add_close": 437.0,
@@ -915,12 +967,12 @@
   "add_period": "近四季",
   "add_rank": 58,
   "added": "2026-11-05",
-  "eps": 22.08,
+  "eps": 20.34,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "帆宣",
   "period": "近四季",
-  "rank": 58
+  "rank": 59
  },
  "6409": {
   "add_close": 829.0,
@@ -928,12 +980,12 @@
   "add_period": "近四季",
   "add_rank": 47,
   "added": "2026-11-05",
-  "eps": 25.81,
+  "eps": 24.63,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "旭隼",
   "period": "近四季",
-  "rank": 47
+  "rank": 48
  },
  "6414": {
   "add_close": 341.5,
@@ -941,12 +993,12 @@
   "add_period": "近四季",
   "add_rank": 51,
   "added": "2026-11-05",
-  "eps": 24.08,
+  "eps": 22.78,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "樺漢",
   "period": "近四季",
-  "rank": 51
+  "rank": 53
  },
  "6442": {
   "add_close": 1070.0,
@@ -954,12 +1006,12 @@
   "add_period": "近四季",
   "add_rank": 37,
   "added": "2026-11-05",
-  "eps": 33.8,
+  "eps": 31.74,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "光聖",
   "period": "近四季",
-  "rank": 37
+  "rank": 38
  },
  "6446": {
   "add_close": 1185.0,
@@ -967,12 +1019,12 @@
   "add_period": "近四季",
   "add_rank": 61,
   "added": "2026-11-05",
-  "eps": 20.42,
+  "eps": 21.89,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "藥華藥",
   "period": "近四季",
-  "rank": 61
+  "rank": 58
  },
  "6491": {
   "add_close": 399.5,
@@ -980,12 +1032,12 @@
   "add_period": "近四季",
   "add_rank": 52,
   "added": "2026-11-05",
-  "eps": 23.98,
+  "eps": 23.56,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "晶碩",
   "period": "近四季",
-  "rank": 52
+  "rank": 51
  },
  "6515": {
   "add_close": 3620.0,
@@ -993,12 +1045,12 @@
   "add_period": "近四季",
   "add_rank": 16,
   "added": "2026-11-05",
-  "eps": 61.08,
+  "eps": 55.59,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "穎崴",
   "period": "近四季",
-  "rank": 16
+  "rank": 20
  },
  "6526": {
   "add_close": 661.0,
@@ -1006,7 +1058,7 @@
   "add_period": "近四季",
   "add_rank": 71,
   "added": "2026-11-05",
-  "eps": 18.03,
+  "eps": 17.02,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "達發",
@@ -1019,12 +1071,12 @@
   "add_period": "近四季",
   "add_rank": 74,
   "added": "2026-11-05",
-  "eps": 17.34,
+  "eps": 16.27,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "愛普*",
   "period": "近四季",
-  "rank": 74
+  "rank": 75
  },
  "6605": {
   "add_close": 131.5,
@@ -1032,12 +1084,12 @@
   "add_period": "近四季",
   "add_rank": 79,
   "added": "2026-11-05",
-  "eps": 16.19,
+  "eps": 15.76,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "帝寶",
   "period": "近四季",
-  "rank": 79
+  "rank": 78
  },
  "6669": {
   "add_close": 1650.0,
@@ -1045,7 +1097,7 @@
   "add_period": "近四季",
   "add_rank": 1,
   "added": "2026-11-05",
-  "eps": 311.91,
+  "eps": 293.95,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "緯穎",
@@ -1058,7 +1110,7 @@
   "add_period": "近四季",
   "add_rank": 49,
   "added": "2026-11-05",
-  "eps": 24.48,
+  "eps": 24.28,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "復盛應用",
@@ -1071,12 +1123,12 @@
   "add_period": "近四季",
   "add_rank": 38,
   "added": "2026-11-05",
-  "eps": 33.43,
+  "eps": 30.62,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "洋基工程",
   "period": "近四季",
-  "rank": 38
+  "rank": 41
  },
  "6781": {
   "add_close": 763.0,
@@ -1084,12 +1136,12 @@
   "add_period": "近四季",
   "add_rank": 28,
   "added": "2026-11-05",
-  "eps": 42.27,
+  "eps": 39.06,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "AES-KY",
   "period": "近四季",
-  "rank": 28
+  "rank": 30
  },
  "6782": {
   "add_close": 265.5,
@@ -1097,12 +1149,12 @@
   "add_period": "近四季",
   "add_rank": 67,
   "added": "2026-11-05",
-  "eps": 18.75,
+  "eps": 19.39,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "視陽",
   "period": "近四季",
-  "rank": 67
+  "rank": 62
  },
  "6805": {
   "add_close": 1875.0,
@@ -1110,7 +1162,7 @@
   "add_period": "近四季",
   "add_rank": 26,
   "added": "2026-11-05",
-  "eps": 46.75,
+  "eps": 42.13,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "富世達",
@@ -1123,7 +1175,7 @@
   "add_period": "近四季",
   "add_rank": 31,
   "added": "2026-11-05",
-  "eps": 40.24,
+  "eps": 36.22,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "兆聯實業",
@@ -1136,7 +1188,7 @@
   "add_period": "近四季",
   "add_rank": 36,
   "added": "2026-11-05",
-  "eps": 34.84,
+  "eps": 34.69,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "聯友金屬-創",
@@ -1149,12 +1201,12 @@
   "add_period": "近四季",
   "add_rank": 32,
   "added": "2026-11-05",
-  "eps": 39.94,
+  "eps": 35.99,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "永擎",
   "period": "近四季",
-  "rank": 32
+  "rank": 33
  },
  "7749": {
   "add_close": 277.5,
@@ -1162,12 +1214,12 @@
   "add_period": "近四季",
   "add_rank": 95,
   "added": "2026-11-05",
-  "eps": 14.46,
+  "eps": 13.81,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "意騰-KY",
   "period": "近四季",
-  "rank": 95
+  "rank": 100
  },
  "7750": {
   "add_close": 1485.0,
@@ -1175,12 +1227,12 @@
   "add_period": "近四季",
   "add_rank": 18,
   "added": "2026-11-05",
-  "eps": 58.19,
+  "eps": 56.82,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "新代",
   "period": "近四季",
-  "rank": 18
+  "rank": 17
  },
  "7769": {
   "add_close": 3980.0,
@@ -1188,12 +1240,12 @@
   "add_period": "近四季",
   "add_rank": 4,
   "added": "2026-11-05",
-  "eps": 96.86,
+  "eps": 89.44,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "鴻勁",
   "period": "近四季",
-  "rank": 4
+  "rank": 5
  },
  "7822": {
   "add_close": 622.0,
@@ -1201,12 +1253,12 @@
   "add_period": "近四季",
   "add_rank": 60,
   "added": "2026-11-05",
-  "eps": 20.66,
+  "eps": 19.0,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "倍利科",
   "period": "近四季",
-  "rank": 60
+  "rank": 63
  },
  "8016": {
   "add_close": 254.0,
@@ -1214,12 +1266,12 @@
   "add_period": "近四季",
   "add_rank": 63,
   "added": "2026-11-05",
-  "eps": 20.02,
+  "eps": 19.42,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "矽創",
   "period": "近四季",
-  "rank": 63
+  "rank": 61
  },
  "8081": {
   "add_close": 246.5,
@@ -1227,7 +1279,7 @@
   "add_period": "近四季",
   "add_rank": 69,
   "added": "2026-11-05",
-  "eps": 18.4,
+  "eps": 17.61,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "致新",
@@ -1240,12 +1292,12 @@
   "add_period": "近四季",
   "add_rank": 34,
   "added": "2026-11-05",
-  "eps": 38.16,
+  "eps": 34.96,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "勤誠",
   "period": "近四季",
-  "rank": 34
+  "rank": 35
  },
  "8271": {
   "add_close": 159.5,
@@ -1253,12 +1305,12 @@
   "add_period": "近四季",
   "add_rank": 21,
   "added": "2026-11-05",
-  "eps": 53.89,
+  "eps": 56.42,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "宇瞻",
   "period": "近四季",
-  "rank": 21
+  "rank": 18
  },
  "8464": {
   "add_close": 368.5,
@@ -1266,12 +1318,12 @@
   "add_period": "近四季",
   "add_rank": 53,
   "added": "2026-11-05",
-  "eps": 23.46,
+  "eps": 22.09,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "億豐",
   "period": "近四季",
-  "rank": 53
+  "rank": 56
  },
  "8478": {
   "add_close": 126.0,
@@ -1279,12 +1331,12 @@
   "add_period": "近四季",
   "add_rank": 97,
   "added": "2026-11-05",
-  "eps": 14.38,
+  "eps": 14.04,
   "expires": "2027-11-05",
   "in_rank": true,
   "name": "東哥遊艇",
   "period": "近四季",
-  "rank": 97
+  "rank": 94
  },
  "8996": {
   "add_close": 1290.0,
@@ -1294,7 +1346,7 @@
   "added": "2026-11-05",
   "eps": 14.85,
   "expires": "2027-11-05",
-  "in_rank": true,
+  "in_rank": false,
   "name": "高力",
   "period": "近四季",
   "rank": 92
