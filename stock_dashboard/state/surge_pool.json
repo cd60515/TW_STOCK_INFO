@@ -135,6 +135,23 @@
   "peak": 402.0,
   "start": "2026-10-27"
  },
+ "3029": {
+  "add_close": 125.0,
+  "add_score": 65.0,
+  "add_status": "early",
+  "added": "2026-11-10",
+  "base": 114.0,
+  "end": "2026-11-10",
+  "expires": "2027-02-08",
+  "gap_bot": 118.0,
+  "gap_top": 120.0,
+  "last": "2026-11-10",
+  "last_close": 125.0,
+  "last_status": "early",
+  "name": "零壹",
+  "peak": 125.0,
+  "start": "2026-11-10"
+ },
  "3543": {
   "add_close": 46.05,
   "add_score": 59.0,
