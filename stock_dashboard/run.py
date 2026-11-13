@@ -72,10 +72,15 @@ def main():
     sz = dash.get("surge")
     if sz:
         senti = sz["sentiment"] or {}
-        print(f"飆股專區:候選 {len(sz['rows'])} 檔(掃描 {sz['scanned']} 檔)、市場溫度 {senti.get('score')} {senti.get('label')}"
+        print(f"連續跳空漲停:候選 {len(sz['rows'])} 檔(掃描 {sz['scanned']} 檔)、市場溫度 {senti.get('score')} {senti.get('label')}"
               f"、題材判讀 {'Claude' if sz['ai'] else '關鍵字'}")
         for x in sz["rows"][:8]:
             print(f"  {x['code']} {x['name']:<6} {sz['status_label'][x['status']]:<10} 續航 {x['score']:>3.0f}  連板 {x['consec']} 缺口 {x['gaps']}")
+    az = dash.get("ajia")
+    if az:
+        print(f"阿家精選:入選 {az['counts']['pass']} 檔、差一步 {az['counts']['near']} 檔(AI 供應鏈 {az['counts']['chain']} 檔、成長排名 {az['ranked']} 檔)")
+        for x in [x for x in az["rows"] if x["pass"]][:8]:
+            print(f"  {x['code']} {x['name']:<6} {x['theme']:<10} 成長第 {x['rank']} 名  漲停 {x['lu_count']} 次  均量 {x['vol20']:.0f}")
     qz = dash.get("quality")
     if qz:
         print(f"績優股池:{len(qz['rows'])} 檔(EPS {qz['period']} 前 {qz['ranked']} 名)、"

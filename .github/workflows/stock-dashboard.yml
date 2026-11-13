@@ -12,6 +12,7 @@ on:
     branches: [main, 'claude/**']
     paths:
       - 'stock_dashboard/watchlist.json'
+      - 'stock_dashboard/ai_chain.json'
       - 'stock_dashboard/run.py'
       - 'stock_dashboard/collector/**'
       - 'stock_dashboard/site/index.html'

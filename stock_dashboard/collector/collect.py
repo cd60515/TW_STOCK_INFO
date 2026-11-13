@@ -11,9 +11,10 @@ BACKFILL_DAYS 個交易日(約 4~5 分鐘),之後每天只抓新的一天。
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from . import ajia as AJ
 from . import sources as S
 from . import quality as Q
 from . import surge as SG
@@ -83,6 +84,40 @@ def index_history(http, cache_dir: Path, today: datetime):
         _save(cache_path, bars)
         return bars
     return cached or None
+
+
+def eps_base(http, state: Path, latest_iso: str) -> dict:
+    """一年前的近四季 EPS(當天收盤價 ÷ 本益比),給阿家飆股算 EPS 年增率。
+    只需兩個 TWSE 請求(本益比 + 收盤行情),存在 state/eps_base.json,基準日偏離一年超過 10 天才重抓。"""
+    path = state / "eps_base.json"
+    cached = _load(path, {})
+    target = date.fromisoformat(latest_iso) - timedelta(days=365)
+    if cached.get("date") and abs((date.fromisoformat(cached["date"]) - target).days) <= 10:
+        return cached
+    for k in range(10):
+        d = target - timedelta(days=k)
+        if d.weekday() >= 5:
+            continue
+        ds = d.strftime("%Y%m%d")
+        val = S.bwibbu(http, ds)
+        if not val:
+            continue
+        px = S.mi_index(http, ds)
+        if not px:
+            continue
+        eps, loss = {}, []
+        for c, p in px.items():
+            pe = (val.get(c) or {}).get("pe")
+            if pe and pe > 0 and p.get("close"):
+                eps[c] = round(p["close"] / pe, 3)
+            elif c in val:  # 有列在本益比表但沒有本益比 = 近四季虧損
+                loss.append(c)
+        out = {"date": d.isoformat(), "eps": eps, "loss": sorted(loss)}
+        _save(path, out)
+        S.log(f"[info] 一年前 EPS 基準日 {d}:{len(eps)} 檔獲利、{len(loss)} 檔虧損")
+        return out
+    S.log("[warn] 抓不到一年前的本益比,阿家飆股的 EPS 年增率暫時只用營收計算")
+    return cached
 
 
 def collect_live(root: Path, watchlist: list[dict]):
@@ -265,6 +300,18 @@ def collect_live(root: Path, watchlist: list[dict]):
             q_bars[c] = b
     S.log(f"[info] 績優股池:EPS 排名 {len(ranked)} 檔、池內 {len(q_pool)} 檔、日線 {len(q_bars)} 檔")
 
+    # 阿家飆股:成長前段班 × AI 供應鏈 × 近三個月漲停 × 量能
+    chain = AJ.load_chain()
+    base = eps_base(http, state, daily[-1][0])
+    aj_bars = {}
+    for c in chain:
+        if c not in names:  # 不是上市股票
+            continue
+        b = q_bars.get(c) or surge_bars.get(c) or S.yahoo_chart(http, c + ".TW")
+        if b:
+            aj_bars[c] = b
+    S.log(f"[info] 阿家飆股:AI 供應鏈 {len(chain)} 檔、日線 {len(aj_bars)} 檔、EPS 基準日 {base.get('date')}")
+
     S.log(f"[info] 收集完成,TWSE 請求 {http.twse_calls} 次")
     return {
         "demo": False,
@@ -281,5 +328,6 @@ def collect_live(root: Path, watchlist: list[dict]):
         "market_news": market_news,
         "surge": {"candidates": cands, "pool": pool, "bars": surge_bars, "monthly": surge_monthly, "news": surge_news, "vix": vix, "oil": oil, "alerts": alerts},
         "quality": {"pool": q_pool, "bars": q_bars},
+        "ajia": {"chain": chain, "bars": aj_bars, "eps_base": base},
         "data_complete": "margin" in latest_idx and "t86" in latest_idx,
     }
