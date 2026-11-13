@@ -5,6 +5,7 @@ import os
 
 import pandas as pd
 
+from . import ajia as AJ
 from . import analysis as A
 from . import indicators as I
 from . import news as N
@@ -137,6 +138,11 @@ def build(ctx, watchlist):
     except Exception as e:  # 績優股池異常不應讓整個網站失敗
         print(f"[warn] 績優股池產生失敗: {e!r}")
         quality = None
+    try:
+        ajia = AJ.build_zone(ctx)
+    except Exception as e:  # 阿家飆股異常不應讓整個網站失敗
+        print(f"[warn] 阿家飆股產生失敗: {e!r}")
+        ajia = None
     stocks.sort(key=lambda x: -x["score"])
     return {
         "demo": ctx["demo"],
@@ -150,4 +156,5 @@ def build(ctx, watchlist):
         "screens": screens,
         "surge": surge,
         "quality": quality,
+        "ajia": ajia,
     }

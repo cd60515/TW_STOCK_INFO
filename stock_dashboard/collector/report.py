@@ -69,12 +69,24 @@ def email_html(dash: dict) -> str:
         se = sz.get("sentiment") or {}
         lbl = sz["status_label"]
         picks = [x for x in sz["rows"] if x["status"] not in sz.get("excluded", ["failed"])][:8]
-        surge = (f"<h3 style='margin:18px 0 6px'>飆股專區(連續跳空漲停)</h3>"
+        surge = (f"<h3 style='margin:18px 0 6px'>阿家飆股・連續跳空漲停</h3>"
                  + (f"<p style='margin:4px 0'>市場溫度 <b>{se['score']:.0f}</b>({html.escape(se['label'])}):"
                     f"{html.escape(se['advice'])}</p>" if se else "")
                  + "".join(f"<p style='margin:3px 0'><b>{x['code']} {html.escape(x['name'])}</b> ・ {lbl[x['status']]} ・ "
                            f"續航 {x['score']:.0f} ・ 缺口 {x['key_bot']}~{x['key_top']} ・ 停損 {x['plan']['stop']}</p>" for x in picks)
                  + ("" if picks else "<p style='margin:4px 0'>今日無符合型態的股票</p>"))
+    aj = dash.get("ajia")
+    if aj:
+        picks = [x for x in aj["rows"] if x["pass"]][:10]
+        near = [x for x in aj["rows"] if len(x["miss"]) == 1][:6]
+        lbl = {c["key"]: c["label"] for c in aj["checks"]}
+        surge = (f"<h3 style='margin:18px 0 6px'>阿家精選(成長前段班 × AI 供應鏈 × 3 個月內漲停 × 量能)</h3>"
+                 + "".join(f"<p style='margin:3px 0'><b>{x['code']} {html.escape(x['name'])}</b> ・ {html.escape(x['theme'])} ・ "
+                           f"成長第 {x['rank']} 名 ・ 3 個月漲停 {x['lu_count']} 次 ・ 收盤 {x['close']}</p>" for x in picks)
+                 + ("" if picks else "<p style='margin:4px 0'>今日沒有四項全部符合的股票</p>")
+                 + (("<p style='margin:6px 0 2px;color:#5f6368'>差一步:"
+                     + html.escape("、".join(f"{x['code']} {x['name']}(缺{lbl[x['miss'][0]]})" for x in near)) + "</p>") if near else "")
+                 + surge)
     link = (f"<p><a href='{html.escape(url)}' style='color:#1a73e8'>開啟完整分析網站 →</a></p>" if url else
             "<p>完整互動版請開啟附件 <b>report.html</b>(手機可直接用瀏覽器開啟)。</p>")
     return f"""<div style="font-family:-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;max-width:760px;color:#202124">

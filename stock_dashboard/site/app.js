@@ -460,9 +460,25 @@
       <div class="gauge-scale"><span>極度恐慌</span><span>恐慌</span><span>中性</span><span>貪婪</span><span>極度貪婪</span></div>`;
   }
 
+  // 阿家飆股頁:上方切換「阿家精選」與「連續跳空漲停」兩套策略
+  let ajiaMode = store.get("ajiaMode", "pick");
+  function modeBar() {
+    const A = D.ajia, Z = D.surge;
+    const modes = [["pick", "阿家精選", A ? A.counts.pass : null], ["gap", "連續跳空漲停・市場溫度", Z ? Z.rows.filter((x) => !(Z.excluded || []).includes(x.status)).length : null]];
+    return `<div class="mode-bar seg" role="tablist" aria-label="阿家飆股策略">${modes.map(([k, l, n]) => `<button type="button" role="tab" aria-selected="${ajiaMode === k}" data-mode="${k}" class="${ajiaMode === k ? "on" : ""}">${esc(l)}${n == null ? "" : ` <span class="num" style="opacity:.75">${n}</span>`}</button>`).join("")}</div>`;
+  }
+  function bindModeBar() {
+    $app.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+      ajiaMode = b.getAttribute("data-mode"); store.set("ajiaMode", ajiaMode); destroyCharts(); viewAjiaPage();
+    }));
+  }
+  function viewAjiaPage() {
+    if (ajiaMode === "gap") viewSurge(); else viewAjia();
+  }
+
   function viewSurge() {
     const Z = D.surge;
-    if (!Z) { $app.innerHTML = '<section class="panel"><p class="empty">飆股專區資料尚未產生(下一次排程執行後就會出現)</p></section>'; return; }
+    if (!Z) { $app.innerHTML = modeBar() + '<section class="panel"><p class="empty">連續跳空漲停資料尚未產生(下一次排程執行後就會出現)</p></section>'; bindModeBar(); return; }
     const S = Z.sentiment, L = Z.status_label;
     const EX = Z.excluded || ["failed"], VR = Z.vol_rule || { lu: 0, day: 0 };
     const ok = (x) => !EX.includes(x.status);
@@ -476,7 +492,7 @@
     if (!surgeSel || !Z.rows.find((x) => x.code === surgeSel)) surgeSel = (rows[0] || Z.rows[0] || {}).code;
     const tabs = [["all", "可操作名單", Z.rows.filter(ok).length]]
       .concat(Z.pool ? [["pool", `追蹤池(${Z.pool_days} 天)`, Z.rows.filter((x) => x.pool).length]] : []).concat(Z.status_order.map((k) => [k, L[k], Z.counts[k] || 0]));
-    $app.innerHTML = `
+    $app.innerHTML = modeBar() + `
     ${S ? `<section class="panel regime senti">
       <div><div class="label">市場溫度計 ・ 恐慌 vs 貪婪</div>
         <div class="regime-label senti-${S.cls}"><span class="num">${fmt(S.score, 0)}</span> ${esc(S.label)}</div></div>
@@ -544,6 +560,7 @@
         <li class="info"><span><b>注意/處置股</b>:連續漲停常被列入,處置期間分盤撮合、流動性變差,部位要更小。</span></li>
       </ul></section>
     </div>`;
+    bindModeBar();
     $app.querySelectorAll("[data-st]").forEach((b) => b.addEventListener("click", () => { surgeTab = b.getAttribute("data-st"); store.set("surgeTab", surgeTab); surgeSel = null; destroyCharts(); viewSurge(); }));
     $app.querySelectorAll("[data-sv]").forEach((tr) => tr.addEventListener("click", () => {
       surgeSel = tr.getAttribute("data-sv");
@@ -657,6 +674,124 @@
     if (LC && S.lu) anchor.setMarkers(S.date.map((t, i) => S.lu[i] ? { time: t, position: "aboveBar", color: css("--up"), shape: "arrowUp", text: "" } : null).filter(Boolean));
     const n = S.date.length;
     ch.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - K.show), to: n + 2 });
+  }
+
+  // ---------------------------------------------------------------- 阿家精選
+  // 成長前段班 × AI 供應鏈 × 近三個月有漲停 × 量能足夠(規則在 collector/ajia.py)
+  let ajiaTab = store.get("ajiaTab", "pass");
+  let ajiaSel = null;
+
+  function ckDots(x, CK) {
+    return `<span class="ck" aria-label="${esc(CK.map((c) => c.label + (x.checks[c.key] ? "符合" : "未符合")).join("、"))}">${CK.map((c) =>
+      `<i class="${x.checks[c.key] ? "ok" : "no"}" title="${esc(c.label)}:${x.checks[c.key] ? "符合" : "未符合"}">${x.checks[c.key] ? "✓" : "✕"}</i>`).join("")}</span>`;
+  }
+  const luCell = (x) => !x.lu_count ? '<span class="muted">0</span>' : `<b class="up">${x.lu_count}</b> <small class="muted">${x.lu_days_ago === 0 ? "今天" : x.lu_days_ago + " 日前"}</small>`;
+  const growthCell = (x) => x.growth == null ? '<span class="muted">—</span>' : `<span class="scorebar"><b>${fmt(x.growth, 0)}</b><span><i style="width:${x.growth}%"></i></span></span>`;
+  const epsYoy = (x) => x.turnaround ? chip("轉虧為盈", "bull") : pct(x.eps_yoy, 0);
+
+  function viewAjia() {
+    const A = D.ajia;
+    if (!A) { $app.innerHTML = modeBar() + '<section class="panel"><p class="empty">阿家精選資料尚未產生(下一次排程執行後就會出現)</p></section>'; bindModeBar(); return; }
+    const R = A.rule, CK = A.checks, rows0 = A.rows;
+    // 漏斗:AI 供應鏈 → 成長前段班 → 近三個月漲停 → 量能(依序疊加)
+    const f1 = rows0.filter((x) => x.checks.growth), f2 = f1.filter((x) => x.checks.lu), f3 = f2.filter((x) => x.checks.vol);
+    const funnel = [
+      ["全市場獲利股", A.ranked, "依成長分排名"], [`成長前 ${R.growth_top}`, Math.min(R.growth_top, A.ranked), "EPS 年增 + 營收年增"],
+      ["∩ AI 供應鏈", f1.length, `名單 ${A.counts.chain} 檔`], ["∩ 3 個月內漲停", f2.length, `近 ${R.lu_days} 個交易日`],
+      ["∩ 量能足夠", f3.length, `20 日均量 ≥ ${int(R.min_vol)} 張`],
+    ];
+    const tabs = [["pass", "入選", A.counts.pass], ["near", "差一步", A.counts.near], ["chain", "AI 供應鏈全覽", A.counts.chain], ["top", `成長前 ${R.growth_top}`, (A.growth_top || []).length]];
+    if (!tabs.some(([k]) => k === ajiaTab)) ajiaTab = "pass";
+    const isTop = ajiaTab === "top";
+    const rows = isTop ? [] : rows0.filter((x) => ajiaTab === "pass" ? x.pass : ajiaTab === "near" ? x.miss.length === 1 : true);
+    if (!ajiaSel || !rows0.find((x) => x.code === ajiaSel)) ajiaSel = (rows[0] || rows0[0] || {}).code;
+    const label = Object.fromEntries(CK.map((c) => [c.key, c.label]));
+    const emptyMsg = { pass: "今天沒有四個條件全部符合的股票。可以看「差一步」:只差一個條件的股票最值得追蹤,通常是等一根漲停或等下個月營收。", near: "沒有只差一個條件的股票", chain: "AI 供應鏈名單是空的(請檢查 ai_chain.json)" }[ajiaTab];
+    $app.innerHTML = modeBar() + `
+    <section class="panel ajia-hero">
+      <div class="ph"><span>阿家精選 <small>成長前段班 × AI 供應鏈 × 近三個月有漲停 × 量能足夠 ・ 四個條件全部符合才入選</small></span><span class="muted" style="font-size:12px">${esc(D.market.date)} 收盤</span></div>
+      <ol class="funnel">${funnel.map(([l, n, sub], i) => `<li class="${i === funnel.length - 1 ? "last" : ""}"><span class="label">${esc(l)}</span><b class="num">${int(n)}</b><small>${esc(sub)}</small></li>`).join("")}</ol>
+      <div class="radar-tabs seg" style="margin-top:14px">${tabs.map(([k, l, n]) => `<button type="button" data-at="${k}" class="${ajiaTab === k ? "on" : ""}">${esc(l)} <span class="num" style="opacity:.7">${n}</span></button>`).join("")}</div>
+      ${isTop ? `<p class="muted" style="font-size:12.5px;margin:10px 0 0">全體上市獲利股的成長分前 ${R.growth_top} 名(不限產業)。有標子題材的是 AI 供應鏈;沒有標的就算成長再強也不會入選阿家精選。</p>
+      <div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>排名</th><th>股票</th><th class="l">AI 子題材</th><th>成長分</th><th>近四季 EPS</th><th>EPS 年增</th><th>單月營收年增</th><th>累計營收年增</th></tr></thead><tbody>
+      ${(A.growth_top || []).map((x) => `<tr${x.ai ? ' class="click" data-av="' + esc(x.code) + '"' : ""}><td>${x.rank}</td><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span></td>
+        <td class="l">${x.ai ? chip(x.ai, "ai") : '<span class="muted">—</span>'}</td><td>${growthCell(x)}</td><td>${fmt(x.eps)}</td><td>${epsYoy(x)}</td><td>${pct(x.rev_yoy, 1)}</td><td>${pct(x.rev_cum, 1)}</td></tr>`).join("")}
+      </tbody></table></div>`
+      : rows.length ? `<div class="tbl-wrap" style="margin-top:10px"><table class="t"><thead><tr><th>股票</th><th class="l">AI 子題材</th><th class="l" title="依序:${esc(CK.map((c) => c.label).join(" / "))}">四項條件</th>${ajiaTab === "near" ? '<th class="l">還差</th>' : ""}<th title="全體上市獲利股中的成長分排名">成長排名</th><th>成長分</th><th>近四季 EPS</th><th>EPS 年增</th><th>營收年增<br><small>單月 / 累計</small></th><th>3 個月漲停</th><th>20 日均量</th><th>收盤</th><th>漲跌</th><th>距季線</th><th>距高點</th></tr></thead><tbody>
+      ${rows.map((x) => `<tr class="click${x.code === ajiaSel ? " sel" : ""}" data-av="${esc(x.code)}"><td><span class="cd">${esc(x.code)}</span><span class="nm">${esc(x.name)}</span></td>
+        <td class="l">${chip(x.theme, "ai")}</td><td class="l">${ckDots(x, CK)}</td>
+        ${ajiaTab === "near" ? `<td class="l">${x.miss.map((k) => chip(label[k], "warn")).join(" ")}</td>` : ""}
+        <td>${x.rank ?? '<span class="muted" title="虧損或資料不足">—</span>'}</td><td>${growthCell(x)}</td><td>${fmt(x.eps)}</td><td>${epsYoy(x)}</td>
+        <td>${pct(x.rev_yoy, 0)} / ${pct(x.rev_cum, 0)}</td><td>${luCell(x)}</td>
+        <td><span class="${x.checks.vol ? "" : "vol-bad"}">${x.vol20 == null ? "—" : int(x.vol20)}</span></td>
+        <td>${fmt(x.close)}</td><td>${pct(x.chg_pct)}</td><td>${pct(x.d_ma60, 1)}</td><td>${pct(x.dd, 1)}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="empty">${esc(emptyMsg)}</p>`}
+    </section>
+    <section class="panel" id="ajiaDetail"></section>
+    <section class="panel"><h2>選股邏輯</h2><ul class="sig">
+      <li class="bull"><span><b>① 成長前 ${R.growth_top}</b>:全體上市、獲利中的普通股,依「成長分」排名。成長分 = 近四季 EPS 年增率 ${Math.round(R.w_eps * 100)}% + 最新單月營收年增率 ${Math.round(R.w_rev * 100)}% + 今年累計營收年增率 ${Math.round(R.w_cum * 100)}%,三項各自換算成全市場百分位後加權(0–100)。</span></li>
+      <li class="info"><span><b>為什麼不是「明年預估 EPS」</b>:法人對明年 EPS 的共識預估是付費資料(券商報告、彭博、FactSet),沒有免費公開來源。這裡改用公開且最領先的數字推估:營收是獲利的領先指標,EPS 年增率確認成長已經反映在獲利上。一年前的 EPS 由當天本益比與收盤價還原${A.eps_base_date ? `(基準日 ${esc(A.eps_base_date)})` : ""};一年前虧損、現在獲利標示為「轉虧為盈」。EPS 年增率上限 ${R.eps_cap}%,避免低基期公司的極端值。</span></li>
+      <li class="bull"><span><b>② AI 供應鏈</b>:晶圓代工、ASIC、先進封裝、伺服器 ODM、散熱、電源、PCB/CCL、光通訊、AI 電網等 ${A.counts.chain} 檔上市公司,名單在 <code>stock_dashboard/ai_chain.json</code>,可自行增刪。</span></li>
+      <li class="bull"><span><b>③ 3 個月內漲停</b>:近 ${R.lu_days} 個交易日內至少一根收盤漲停,代表有主力資金表態,不是只有基本面沒人理。</span></li>
+      <li class="bear"><span><b>④ 量能</b>:近 20 日平均成交量至少 ${int(R.min_vol)} 張。量太小的股票(例如冷門的高價股、小型股)進出困難,直接剔除。</span></li>
+      <li class="info"><span><b>怎麼用</b>:入選代表「題材 + 成長 + 資金」三者同時到位,不代表現在就是買點。剛漲停、離季線很遠的先等回檔;可搭配「連續跳空漲停」頁的缺口買點與市場溫度一起看。</span></li>
+    </ul></section>`;
+    bindModeBar();
+    $app.querySelectorAll("[data-at]").forEach((b) => b.addEventListener("click", () => { ajiaTab = b.getAttribute("data-at"); store.set("ajiaTab", ajiaTab); ajiaSel = null; destroyCharts(); viewAjia(); }));
+    $app.querySelectorAll("[data-av]").forEach((tr) => tr.addEventListener("click", () => {
+      ajiaSel = tr.getAttribute("data-av");
+      $app.querySelectorAll("[data-av]").forEach((x) => x.classList.toggle("sel", x === tr));
+      renderAjiaDetail(true);
+    }));
+    renderAjiaDetail(false);
+  }
+
+  function renderAjiaDetail(scroll) {
+    const el = document.getElementById("ajiaDetail");
+    const A = D.ajia, x = A.rows.find((r) => r.code === ajiaSel);
+    destroyCharts();
+    if (!x) { el.hidden = true; return; }
+    el.hidden = false;
+    const R = A.rule;
+    const why = {
+      growth: x.rank ? `成長分 ${fmt(x.growth, 1)},全市場第 ${x.rank} 名${x.checks.growth ? "" : `(門檻:前 ${R.growth_top} 名)`}` : "近四季虧損或資料不足,不列入成長排名",
+      ai: `子題材:${x.theme}`,
+      lu: x.lu_count ? `近 ${R.lu_days} 個交易日漲停 ${x.lu_count} 次,最近一次 ${x.lu_last}${x.since_lu != null ? `(之後 ${x.since_lu > 0 ? "+" : ""}${fmt(x.since_lu, 1)}%)` : ""}` : `近 ${R.lu_days} 個交易日沒有收盤漲停`,
+      vol: `近 20 日平均 ${x.vol20 == null ? "—" : int(x.vol20)} 張(門檻 ${int(R.min_vol)} 張)`,
+    };
+    el.innerHTML = `
+      <div class="stock-head">
+        <div><div class="stock-title">${esc(x.name)}<span class="cd">${esc(x.code)}${x.industry ? " ・ " + esc(x.industry) : ""}</span></div>
+          <div class="row" style="margin-top:6px">${x.pass ? chip("四項全部符合", "bull2") : chip(`差 ${x.miss.length} 項`, x.miss.length === 1 ? "warn" : "neutral")}${chip(x.theme, "ai")}</div></div>
+        <div style="text-align:right"><div class="stock-price ${cls(x.chg_pct)}">${fmt(x.close)}</div><div class="num">${pct(x.chg_pct)}</div></div>
+      </div>
+      <ul class="sig checklist" style="margin-top:12px">${A.checks.map((c) => `<li class="${x.checks[c.key] ? "bull" : "bear"}"><span><b>${x.checks[c.key] ? "✓" : "✕"} ${esc(c.label)}</b>:${esc(why[c.key])}</span></li>`).join("")}</ul>
+      ${x.series ? `<div class="legend" style="margin-top:10px"><span><i style="background:#3f86e0"></i>月線(MA20)</span><span><i style="background:#d6609b"></i>季線(MA60)</span><span>▲ 漲停</span><span>下方柱狀 = 成交量(張)</span></div>
+      <div id="ajiaChart" class="chart-box" style="height:360px"></div>` : '<p class="empty">沒有日線資料</p>'}
+      <div class="kv" style="margin-top:12px">
+        <div><span class="label">近四季 EPS</span><b>${fmt(x.eps)}</b></div>
+        <div><span class="label">一年前近四季 EPS</span><b>${x.turnaround ? '<span class="muted">虧損</span>' : fmt(x.eps_base)}</b></div>
+        <div><span class="label">EPS 年增率</span><b>${epsYoy(x)}</b></div>
+        <div><span class="label">營收年增(${esc(x.rev_ym || "最新月")})</span><b>${pct(x.rev_yoy, 1)}</b></div>
+        <div><span class="label">累計營收年增</span><b>${pct(x.rev_cum, 1)}</b></div>
+        <div><span class="label">營收月增</span><b>${pct(x.rev_mom, 1)}</b></div>
+        <div><span class="label">本益比</span><b>${x.pe == null ? "—" : fmt(x.pe, 1)}</b></div>
+        <div><span class="label">距月線 / 季線</span><b style="font-size:13px">${pct(x.d_ma20, 1)} / ${pct(x.d_ma60, 1)}</b></div>
+        <div><span class="label">20 日 / 60 日漲幅</span><b style="font-size:13px">${pct(x.chg20, 1)} / ${pct(x.chg60, 1)}</b></div>
+        <div><span class="label">距 52 週高點</span><b>${pct(x.dd, 1)}</b></div>
+        <div><span class="label">今日量 / 20 日均量</span><b style="font-size:13px">${x.vol == null ? "—" : int(x.vol)} / ${x.vol20 == null ? "—" : int(x.vol20)} 張</b></div>
+      </div>
+      <p style="margin:10px 0 0;font-size:13px"><a href="${quoteUrl(x.code)}" target="_blank" rel="noopener">在 Yahoo 股市查看即時報價 →</a></p>`;
+    if (x.series) {
+      const S = x.series;
+      const ch = priceChart(document.getElementById("ajiaChart"), S, { mas: [[20, "#3f86e0"], [60, "#d6609b"]] });
+      if (ch && window.LightweightCharts) {
+        const anchor = ch.addLineSeries({ color: "transparent", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        anchor.setData(S.date.map((t, i) => ({ time: t, value: S.close[i] })));
+        anchor.setMarkers(S.date.map((t, i) => S.lu[i] ? { time: t, position: "aboveBar", color: css("--up"), shape: "arrowUp", text: "" } : null).filter(Boolean));
+      }
+    }
+    if (scroll) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // 國際原油:夜間在美國交易,台股開盤前就能看到前一晚的變化
@@ -861,7 +996,13 @@
       </ul>
       <h3>大盤多空與持股水位</h3>
       <p>以指數與月線/季線位置及斜率、MACD、外資 5 日買賣超、漲跌家數計分。大盤偏空時,即使個股評分高也建議降低部位。</p>
-      <h3>飆股專區(連續跳空漲停)</h3>
+      <h3>阿家飆股 ・ 阿家精選</h3>
+      <ul>
+        <li>四個條件全部符合才入選:① 成長分前 100 名(全體上市獲利股)② AI 供應鏈 ③ 近 60 個交易日(約三個月)內有收盤漲停 ④ 近 20 日平均成交量 ≥ 1,000 張。</li>
+        <li>成長分 = 近四季 EPS 年增率 40% + 最新單月營收年增率 35% + 今年累計營收年增率 25%(各自換算成全市場百分位)。法人「明年預估 EPS」是付費資料,這裡用公開的營收與 EPS 成長推估。</li>
+        <li>AI 供應鏈名單在 <code>stock_dashboard/ai_chain.json</code>,可自行增刪;只差一個條件的股票列在「差一步」分頁。</li>
+      </ul>
+      <h3>阿家飆股 ・ 連續跳空漲停</h3>
       <ul>
         <li>每天掃描全體上市股票,找出近 20 個交易日內「連續 2 根以上漲停、且至少一根跳空漲停」的股票,用兩年日線精確判斷型態。</li>
         <li>依狀態分類:回測缺口・買點區、整理後再創新高、強勢整理、連板鎖單中、首根跳空漲停(早期觀察)、缺口回補・型態失敗。</li>
@@ -886,7 +1027,7 @@
     const h = (location.hash || "#overview").slice(1);
     let view = h, code = null;
     if (h.startsWith("stock")) { view = "stock"; code = h.split("-")[1] || store.get("lastStock", null); }
-    const views = { overview: viewOverview, watchlist: viewWatchlist, stock: () => viewStock(code), radar: viewRadar, surge: viewSurge, quality: viewQuality, portfolio: viewPortfolio, guide: viewGuide };
+    const views = { overview: viewOverview, watchlist: viewWatchlist, stock: () => viewStock(code), radar: viewRadar, surge: viewAjiaPage, quality: viewQuality, portfolio: viewPortfolio, guide: viewGuide };
     (views[view] || viewOverview)();
     document.querySelectorAll("#tabs a").forEach((a) => a.classList.toggle("on", a.dataset.view === (views[view] ? view : "overview")));
     window.scrollTo(0, 0);

@@ -131,7 +131,22 @@ def collect_demo(watchlist):
                        "time": datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M")}] for c in cands}
     surge = {"candidates": cands, "bars": {c: walks[c] for c in cands if len(walks[c]) >= 60},
              "news": surge_news, "vix": vix, "oil": oil, "alerts": {"6106": "注意"}}
+    # 阿家飆股示範:幾檔自選股 + 示範飆股當作 AI 供應鏈
+    themes = {"2330": "晶圓代工", "2454": "ASIC/IC設計", "2317": "伺服器ODM", "2382": "伺服器ODM", "3231": "伺服器ODM",
+              "2308": "電源/電力", "3017": "散熱", "2345": "網通交換器/光通訊", "1519": "AI電網/重電",
+              "6101": "散熱", "6102": "PCB/CCL/載板", "6105": "先進封裝/測試", "6106": "伺服器機殼/滑軌"}
+    chain = {c: t for c, t in themes.items() if c in universe}
+    last_px = daily[-1][1]["px"]
+    base_eps = {c: round(last_px[c]["close"] / v["pe"] / rng.uniform(0.6, 1.6), 3)
+                for c, v in valuation.items() if v.get("pe") and c in last_px}
+    for c in ("6101", "6102", "6105"):  # 示範飆股給高成長,才會出現「全部符合」
+        if c in base_eps:
+            base_eps[c] = round(base_eps[c] * 0.45, 3)
+            revenue[c].update({"yoy": round(rng.uniform(45, 80), 2), "cum_yoy": round(rng.uniform(35, 60), 2)})
+    ajia = {"chain": chain, "bars": {c: walks[c] for c in chain if len(walks[c]) >= 60},
+            "eps_base": {"date": (datetime.now(TAIPEI).date() - timedelta(days=365)).isoformat(), "eps": base_eps, "loss": []}}
     return {
+        "ajia": ajia,
         "surge": surge,
         "quality": {"pool": {}, "bars": {c: prices[c] for c in prices}},
         "demo": True,
